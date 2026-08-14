@@ -16,14 +16,23 @@ describe('stack detection', () => {
     expect(detectStacks(directory)).toEqual(['javascript', 'typescript', 'react']);
   });
 
-  it('keeps audit read-only and returns a deterministic baseline score', () => {
+  it('keeps audit read-only and returns deterministic findings and a score', () => {
     const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
     temporaryDirectories.push(directory);
-    writeFileSync(join(directory, 'index.js'), 'console.log("hello")');
+    writeFileSync(join(directory, 'index.js'), 'debugger;');
     const report = audit(directory);
     expect(report.readOnly).toBe(true);
     expect(report.sourceFiles).toBe(1);
-    expect(report.score).toMatchObject({ fucked: 0, health: 100, method: 'deterministic-v1' });
+    expect(report.findings).toMatchObject([{ ruleId: 'debug-statements', risk: 'auto', lines: [1], scoreImpact: 2 }]);
+    expect(report.score).toMatchObject({ fucked: 2, health: 98, method: 'deterministic-v1' });
+  });
+
+  it('reports residue instead of automatically deleting it', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    writeFileSync(join(directory, 'service.ts'), '// temporary fix: remove after migration');
+    const [finding] = audit(directory).findings;
+    expect(finding).toMatchObject({ ruleId: 'ai-residue', risk: 'report-only', lines: [1] });
   });
 
   it('recognizes WordPress hooks only inside PHP files', () => {

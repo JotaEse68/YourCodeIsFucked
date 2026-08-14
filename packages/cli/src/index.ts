@@ -34,10 +34,11 @@ program.command('audit [target]').description('Audit a repository without modify
   console.log(`Stacks: ${report.stacks.join(', ') || 'unknown'}`);
   console.log(`Source files: ${report.sourceFiles}`);
   console.log(`Git: ${report.git.detected ? 'detected' : 'not detected'}`);
+  console.log(`Findings: ${report.findings.length}`);
+  for (const finding of report.findings) console.log(`[${finding.severity}] ${finding.file}:${finding.lines.join(', ')} — ${finding.evidence}`);
   console.log(`FUCKED SCORE: ${report.score.fucked}%`);
   console.log(`HEALTH SCORE: ${report.score.health}/100`);
   console.log('Audit mode is read-only.');
 });
 
 program.parse();
-
