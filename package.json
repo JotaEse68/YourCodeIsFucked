@@ -1,0 +1,19 @@
+{
+  "name": "your-code-is-fucked",
+  "version": "0.1.0-dev",
+  "private": true,
+  "description": "Open-source codebase audit, cleanup, refactoring and verification engine.",
+  "packageManager": "pnpm@11.19.0",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "pnpm --filter @ycf/core build && pnpm --filter @ycf/cli build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm --filter @ycf/core typecheck && pnpm --filter @ycf/core build && pnpm --filter @ycf/cli typecheck",
+    "ycf": "pnpm build && node packages/cli/dist/index.js"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0"
+  }
+}
