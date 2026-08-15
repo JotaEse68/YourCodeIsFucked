@@ -95,11 +95,11 @@ For contribution and security reporting guidance, see [CONTRIBUTING.md](CONTRIBU
 
 ## License
 
-Copyright 2026 JotaEse68. YCF is licensed under the [Apache License 2.0](LICENSE). The repository and its packages remain private until an intentional public release is made.
+Copyright 2026 JotaEse68. YCF is licensed under the [Apache License 2.0](LICENSE). Releases are published only through an intentional npm command after the full validation passes.
 
 ## Planned packages
 
-The future `0.1.0` release will publish `your-code-is-fucked` for the `ycf` command and `@ycf/core` for the reusable engine. Both are currently marked private; run `corepack pnpm pack:check` to inspect their package contents without publishing.
+Version `0.1.0` publishes `your-code-is-fucked` for the `ycf` command and `@ycf/core` for the reusable engine. Run `corepack pnpm pack:check` to inspect their package contents without publishing.
 
 ## Current status
 

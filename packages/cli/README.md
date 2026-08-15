@@ -10,4 +10,4 @@ npm install -g your-code-is-fucked
 
 Then run `ycf init` in a project to choose a language and explanation level. YCF starts with read-only diagnostics and never makes sensitive changes automatically.
 
-This package is prepared for version `0.1.0` but remains private until the maintainer intentionally publishes it.
+Version `0.1.0` is released only after the maintainer intentionally runs the npm publication command.

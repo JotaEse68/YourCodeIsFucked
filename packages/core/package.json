@@ -2,7 +2,6 @@
   "name": "@ycf/core",
   "version": "0.1.0",
   "license": "Apache-2.0",
-  "private": true,
   "description": "Deterministic audit, architecture, cleanup, and verification engine for YCF.",
   "repository": { "type": "git", "url": "git+https://github.com/JotaEse68/YourCodeIsFucked.git", "directory": "packages/core" },
   "bugs": { "url": "https://github.com/JotaEse68/YourCodeIsFucked/issues" },
