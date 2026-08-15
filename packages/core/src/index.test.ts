@@ -245,5 +245,7 @@ describe('stack detection', () => {
     expect(report.checks).toContainEqual(expect.objectContaining({ name: 'verification', status: 'warning' }));
     expect(readFileSync(paths.markdownPath, 'utf8')).toContain('YCF — READY');
     expect(releaseCheckLabel('es', { name: 'git', status: 'failed', detail: 'ignored' })).toContain('crea un commit');
+    expect(releaseCheckLabel('fr', { name: 'verification', status: 'failed', detail: 'ignored' })).toContain('ycf verify');
+    expect(releaseCheckLabel('zh', { name: 'documentation', status: 'warning', detail: 'ignored' })).toContain('README.md');
   });
 });
