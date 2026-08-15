@@ -323,3 +323,41 @@ export function wordpressPrivilegeEscalationFindings(sources: WordPressSource[])
   }
   return findings;
 }
+
+function sensitiveDataKind(name: string): 'personal' | 'secret' | undefined {
+  const normalized = name.toLowerCase();
+  if (/(?:email|e_mail)/.test(normalized)) return 'personal';
+  if (/(?:password|pass|token|secret|api[_-]?key|authorization|cookie)/.test(normalized)) return 'secret';
+  return undefined;
+}
+
+function exposedPayloadKeys(body: string): Array<{ name: string; offset: number }> {
+  const keys: Array<{ name: string; offset: number }> = [];
+  const payloads = /\b(?:wp_send_json(?:_success|_error)?\s*\(|return\s+(?:array\s*\(|\[))([\s\S]{0,500}?)(?:\);|\])/g;
+  for (const payload of body.matchAll(payloads)) for (const key of payload[1].matchAll(/['"]([A-Za-z_][A-Za-z0-9_-]*)['"]\s*=>/g)) if (sensitiveDataKind(key[1])) keys.push({ name: key[1], offset: (payload.index ?? 0) + (key.index ?? 0) });
+  for (const output of body.matchAll(/\becho\s+\$([A-Za-z_]\w*)/g)) if (sensitiveDataKind(output[1])) keys.push({ name: output[1], offset: output.index ?? 0 });
+  return keys;
+}
+
+/** Reports possible personal-data or secret exposure only when a resolved AJAX or REST callback sends a response. */
+export function wordpressSensitiveExposureFindings(sources: WordPressSource[]): Finding[] {
+  const definitions = callbackDefinitions(sources);
+  const instances = instanceClasses(sources);
+  const endpointKind = new Map<string, Set<'AJAX' | 'REST'>>();
+  for (const registration of ajaxRegistrations(sources, instances)) endpointKind.set(registration.callback, new Set([...(endpointKind.get(registration.callback) ?? []), 'AJAX']));
+  for (const source of sources) for (const route of source.content.matchAll(/\bregister_rest_route\s*\([\s\S]{0,2000}?\);/g)) {
+    const callback = referencedCallback(route[0], 'callback', instances);
+    if (callback) endpointKind.set(callback, new Set([...(endpointKind.get(callback) ?? []), 'REST']));
+  }
+  const findings: Finding[] = [];
+  for (const [callbackName, kinds] of endpointKind) {
+    const callback = definitions.get(callbackName);
+    if (!callback) continue;
+    for (const exposed of exposedPayloadKeys(callback.body)) {
+      const kind = sensitiveDataKind(exposed.name)!;
+      const line = callback.line + lineAt(callback.body, exposed.offset) - 1;
+      findings.push({ id: `wordpress-sensitive-data-exposure:${callback.file}:${line}:${exposed.name}`, ruleId: 'wordpress-sensitive-data-exposure', severity: kind === 'secret' ? 'medium' : 'low', risk: 'architectural', file: callback.file, lines: [line], evidence: `${kinds.size === 2 ? 'AJAX and REST' : [...kinds][0]} callback ${callbackName} appears to expose ${kind === 'secret' ? 'a secret-like' : 'personal'} field '${exposed.name}' in a response. Confirm this field is necessary, authorized, and not cached or logged publicly.`, scoreImpact: kind === 'secret' ? 5 : 0 });
+    }
+  }
+  return findings;
+}

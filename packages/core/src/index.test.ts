@@ -319,6 +319,24 @@ describe('stack detection', () => {
     expect(findings).toEqual([]);
   });
 
+  it('reports personal data and secrets only when endpoint callbacks return them', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    writeFileSync(join(directory, 'endpoints.php'), [
+      '<?php',
+      "add_action('wp_ajax_profile', 'profile_response');",
+      "register_rest_route('ycf/v1', '/account', array('callback' => 'account_response', 'permission_callback' => 'can_read_account'));",
+      "function profile_response() { check_ajax_referer('profile'); current_user_can('read'); wp_send_json_success(array('email' => 'a@example.com', 'api_token' => $token)); }",
+      "function account_response() { return array('access_token' => $token); }",
+      "function can_read_account() { return current_user_can('read'); }",
+      "$email = 'internal@example.com';"
+    ].join('\n'));
+    const findings = audit(directory).findings.filter((finding) => finding.ruleId === 'wordpress-sensitive-data-exposure');
+    expect(findings).toHaveLength(3);
+    expect(findings.filter((finding) => finding.severity === 'medium')).toHaveLength(2);
+    expect(findings.filter((finding) => finding.severity === 'low')).toHaveLength(1);
+  });
+
   it('honours the configured file-size limit', () => {
     const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
     temporaryDirectories.push(directory);
