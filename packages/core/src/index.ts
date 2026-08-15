@@ -623,9 +623,10 @@ export function writeAuditReport(target: string, report = audit(target)): { json
 }
 
 /** Produce a reviewable refactor plan. This intentionally never modifies source files. */
-export function refactorPlan(target: string): { plan: RefactorPlan; jsonPath: string; markdownPath: string } {
+export function refactorPlan(target: string, options?: { language?: import('./types.js').Language; audience?: import('./types.js').Audience }): { plan: RefactorPlan; jsonPath: string; markdownPath: string } {
   const auditReport = audit(target);
   const understanding = understand(target);
-  const plan = buildRefactorPlan(auditReport, understanding);
+  const config = loadConfig(target);
+  const plan = buildRefactorPlan(auditReport, understanding, options?.language ?? config.language, options?.audience ?? config.audience);
   return { plan, ...writeRefactorPlan(target, plan) };
 }

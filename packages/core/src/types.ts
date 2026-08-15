@@ -59,6 +59,6 @@ export interface RefactorRecommendation {
   stopIf: string[];
 }
 export interface RefactorPlan {
-  target: string; generatedAt: string; recommendations: RefactorRecommendation[];
+  target: string; generatedAt: string; language: Language; audience: Audience; recommendations: RefactorRecommendation[];
   summary: { safeRefactors: number; architecturalReviews: number; total: number };
 }

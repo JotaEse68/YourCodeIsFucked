@@ -14,6 +14,17 @@ const defaultConfig = `version: 1\n\nmode: balanced\n\nsafety:\n  require_git: t
 type Language = 'en' | 'es' | 'pt' | 'fr' | 'de' | 'it' | 'ar' | 'zh';
 type Audience = 'guided' | 'technical' | 'professional';
 
+const refactorLabels: Record<Language, { heading: string; recommendations: string; safe: string; architecture: string; step: string; stop: string; unchanged: string; plan: string }> = {
+  en: { heading: 'supervised refactor plan', recommendations: 'Recommendations', safe: 'Safe refactors to review', architecture: 'Architectural reviews', step: 'First step', stop: 'Stop if', unchanged: 'No source code changed.', plan: 'Plan' },
+  es: { heading: 'plan de refactorización supervisado', recommendations: 'Recomendaciones', safe: 'Refactorizaciones seguras para revisar', architecture: 'Revisiones arquitectónicas', step: 'Primer paso', stop: 'Detente si', unchanged: 'No se cambió código fuente.', plan: 'Plan' },
+  pt: { heading: 'plano de refatoração supervisionado', recommendations: 'Recomendações', safe: 'Refatorações seguras para revisar', architecture: 'Revisões arquiteturais', step: 'Primeiro passo', stop: 'Pare se', unchanged: 'Nenhum código-fonte foi alterado.', plan: 'Plano' },
+  fr: { heading: 'plan de refactorisation supervisé', recommendations: 'Recommandations', safe: 'Refactorisations sûres à examiner', architecture: 'Révisions architecturales', step: 'Première étape', stop: 'Arrêtez si', unchanged: 'Aucun code source n’a été modifié.', plan: 'Plan' },
+  de: { heading: 'überwachter Refactoring-Plan', recommendations: 'Empfehlungen', safe: 'Sichere Refactorings zur Prüfung', architecture: 'Architekturprüfungen', step: 'Erster Schritt', stop: 'Stoppe, wenn', unchanged: 'Es wurde kein Quellcode geändert.', plan: 'Plan' },
+  it: { heading: 'piano di refactoring supervisionato', recommendations: 'Raccomandazioni', safe: 'Refactoring sicuri da verificare', architecture: 'Revisioni architetturali', step: 'Primo passo', stop: 'Fermati se', unchanged: 'Nessun codice sorgente è stato modificato.', plan: 'Piano' },
+  ar: { heading: 'خطة إعادة هيكلة تحت الإشراف', recommendations: 'التوصيات', safe: 'عمليات إعادة هيكلة آمنة للمراجعة', architecture: 'مراجعات البنية', step: 'الخطوة الأولى', stop: 'توقف إذا', unchanged: 'لم يتم تغيير أي كود مصدر.', plan: 'الخطة' },
+  zh: { heading: '受监督的重构计划', recommendations: '建议', safe: '需审查的安全重构', architecture: '架构审查', step: '第一步', stop: '如遇以下情况请停止', unchanged: '未修改源代码。', plan: '计划' }
+};
+
 async function choose<T extends string>(question: string, choices: Array<{ value: T; label: string }>, fallback: T): Promise<T> {
   if (!input.isTTY) return fallback;
   const readline = createInterface({ input, output });
@@ -326,19 +337,23 @@ program.command('unfuck [target]').description('Run YCF’s current safe pipelin
   }
 });
 
-program.command('refactor [target]').description('Generate a supervised refactor plan without changing source code.').option('--dry-run', 'Explicitly confirm planning-only mode.').option('--json', 'Emit the full plan as JSON.').action((target = '.', options) => {
-  const result = refactorPlan(target);
+program.command('refactor [target]').description('Generate a supervised refactor plan without changing source code.').option('--dry-run', 'Explicitly confirm planning-only mode.').option('--json', 'Emit the full plan as JSON.').option('--language <language>', 'Response language: en, es, pt, fr, de, it, ar, or zh.').option('--audience <audience>', 'Explanation level: guided, technical, or professional.').action((target = '.', options) => {
+  const config = loadConfig(target);
+  const language: Language = validLanguage(options.language) ? options.language : config.language;
+  const audience: Audience = validAudience(options.audience) ? options.audience : config.audience;
+  const result = refactorPlan(target, { language, audience });
+  const labels = refactorLabels[language];
   if (options.json) { console.log(JSON.stringify(result.plan, null, 2)); return; }
-  console.log('YCF — supervised refactor plan');
-  console.log(`Recommendations: ${result.plan.summary.total}`);
-  console.log(`Safe refactors to review: ${result.plan.summary.safeRefactors}`);
-  console.log(`Architectural reviews: ${result.plan.summary.architecturalReviews}`);
+  console.log(`YCF — ${labels.heading}`);
+  console.log(`${labels.recommendations}: ${result.plan.summary.total}`);
+  console.log(`${labels.safe}: ${result.plan.summary.safeRefactors}`);
+  console.log(`${labels.architecture}: ${result.plan.summary.architecturalReviews}`);
   for (const recommendation of result.plan.recommendations) {
     console.log(`[${recommendation.risk}] ${recommendation.file}:${recommendation.lines.join(',')} — ${recommendation.title}`);
-    console.log(`  1. ${recommendation.steps[0].instruction}`);
-    console.log(`  Stop if: ${recommendation.stopIf[0]}`);
+    console.log(`  ${labels.step}: ${recommendation.steps[0].instruction}`);
+    console.log(`  ${labels.stop}: ${recommendation.stopIf[0]}`);
   }
-  console.log(`No source code changed. Plan: ${result.markdownPath}`);
+  console.log(`${labels.unchanged} ${labels.plan}: ${result.markdownPath}`);
 });
 
 program.command('verify [target]').description('Run available lint, typecheck, test and build scripts.').option('--dry-run', 'Show the commands without running them.').action((target = '.', options) => {

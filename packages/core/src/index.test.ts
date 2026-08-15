@@ -514,6 +514,9 @@ describe('stack detection', () => {
     expect(readFileSync(path, 'utf8')).toBe(source);
     expect(existsSync(result.markdownPath)).toBe(true);
     expect(readFileSync(result.markdownPath, 'utf8')).toContain('Stop and ask for review if');
+    const spanishPlan = refactorPlan(directory, { language: 'es', audience: 'guided' }).plan;
+    expect(spanishPlan).toMatchObject({ language: 'es', audience: 'guided' });
+    expect(spanishPlan.recommendations[0].steps[0].instruction).toContain('Lee service.ts');
   });
 
   it('summarizes release readiness and persists a human-readable report', () => {
