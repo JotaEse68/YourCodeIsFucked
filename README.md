@@ -91,7 +91,11 @@ corepack pnpm test
 corepack pnpm build
 ```
 
-For contribution and security reporting guidance, see [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md). A public release still needs a license choice and an intentional versioning decision; the packages are currently private and cannot be published accidentally.
+For contribution and security reporting guidance, see [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md). A public release still needs an intentional versioning decision; the packages are currently private and cannot be published accidentally.
+
+## License
+
+Copyright 2026 JotaEse68. YCF is licensed under the [Apache License 2.0](LICENSE). The repository and its packages remain private until an intentional public release is made.
 
 ## Current status
 

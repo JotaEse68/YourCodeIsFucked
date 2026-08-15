@@ -1,6 +1,7 @@
 {
   "name": "your-code-is-fucked",
   "version": "0.1.0-dev",
+  "license": "Apache-2.0",
   "private": true,
   "description": "Open-source codebase audit, cleanup, refactoring and verification engine.",
   "packageManager": "pnpm@11.19.0",
