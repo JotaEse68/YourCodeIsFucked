@@ -337,6 +337,19 @@ describe('stack detection', () => {
     expect(findings.filter((finding) => finding.severity === 'low')).toHaveLength(1);
   });
 
+  it('reviews production-unsafe WordPress configuration without exposing credential values', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    writeFileSync(join(directory, 'wp-config.php'), [
+      '<?php',
+      "define('WP_DEBUG', true);", "define('WP_DEBUG_DISPLAY', true);", "define('SCRIPT_DEBUG', true);",
+      "define('DB_PASSWORD', 'replace-this-secret');", "define('DISALLOW_FILE_EDIT', false);"
+    ].join('\n'));
+    const findings = audit(directory).findings;
+    expect(findings.map((finding) => finding.ruleId)).toEqual(expect.arrayContaining(['wordpress-production-debug-config', 'wordpress-hardcoded-config-secret', 'wordpress-file-editor-config']));
+    expect(findings.map((finding) => finding.evidence).join('\n')).not.toContain('replace-this-secret');
+  });
+
   it('honours the configured file-size limit', () => {
     const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
     temporaryDirectories.push(directory);
