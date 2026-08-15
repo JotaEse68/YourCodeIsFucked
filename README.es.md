@@ -137,6 +137,8 @@ Copia `skills/ycf-quality-gate` en la carpeta de skills de tu agente y pídele q
 
 Los adaptadores para Claude Code, Cursor y GitHub Copilot están en [`integrations/`](integrations/).
 
+La skill incluye referencias específicas para TypeScript, React, PHP y WordPress.
+
 ## Hazlo comprensible para tu equipo
 
 `ycf init` permite elegir idioma y nivel de explicación. El inglés es el idioma por defecto; también están disponibles español, portugués, francés, alemán, italiano, árabe y chino.

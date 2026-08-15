@@ -37,6 +37,10 @@ Use YCF as the evidence layer before changing a repository. YCF is irreverent in
    Never silently apply architectural refactors. Ask the user to approve a specific recommendation and define the verification checks before editing.
 6. Before release, run `ycf release . --dependencies`. Treat medium findings as a review gate and low findings as explicit follow-up items.
 
+## Stack profiles
+
+When YCF detects a supported stack, load the matching guidance in [references/stack-profiles.md](references/stack-profiles.md). Keep the base checkpoint, approval, diff, and verification rules unchanged.
+
 ## Communication rules
 
 - Prefer the user's configured language and explain English technical terms immediately.
