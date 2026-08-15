@@ -8,6 +8,7 @@ import { writeAuditReport as persistAuditReport, writeRefactorPlan } from './rep
 import { buildRefactorPlan } from './planner.js';
 import { wordpressAjaxFindings, wordpressDataFlowFindings, wordpressDestructiveOperationFindings, wordpressFindings, wordpressPrivilegeEscalationFindings, wordpressRestFindings, wordpressRestPersistenceFindings, wordpressSensitiveExposureFindings } from './wordpress.js';
 import { createReleaseReadiness } from './release.js';
+import { typescriptFindings } from './typescript.js';
 import type { AuditReport, CleanupReport, DuplicateGroup, Finding, RefactorPlan, Stack, UnderstandReport, YcfConfig } from './types.js';
 export type { AuditReport, CleanupReport, DependencyAuditReport, DependencyVulnerability, DuplicateGroup, Finding, FindingRisk, GitCheckpoint, GitState, RefactorPlan, RefactorRecommendation, ReleaseCheck, ReleaseReport, Stack, UnderstandReport, UnfuckReport, VerificationCheck, VerificationReport, YcfConfig } from './types.js';
 export { defaultConfig, loadConfig } from './config.js';
@@ -193,27 +194,6 @@ function reactAsyncEffectsWithoutCleanup(file: string, content: string): number[
   return lines;
 }
 
-function typescriptSuppressionLines(file: string, content: string): number[] {
-  return ['.ts', '.tsx'].includes(extname(file)) ? lineNumbers(content, /^\s*\/\/\s*@ts-(?:ignore|nocheck)\b/) : [];
-}
-
-function typescriptPublicAnyLines(file: string, content: string): number[] {
-  if (!['.ts', '.tsx'].includes(extname(file))) return [];
-  const sourceFile = ts.createSourceFile(file, content, ts.ScriptTarget.Latest, true, scriptKind(file));
-  const lines = new Set<number>();
-  const exported = (node: ts.Node): boolean => ts.canHaveModifiers(node) && !!ts.getModifiers(node)?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword);
-  const isAny = (node: ts.TypeNode | undefined): boolean => node?.kind === ts.SyntaxKind.AnyKeyword;
-  const visit = (node: ts.Node): void => {
-    if (ts.isFunctionDeclaration(node) && exported(node) && (node.parameters.some((parameter) => isAny(parameter.type)) || isAny(node.type))) lines.add(lineAt(content, node.getStart(sourceFile)));
-    if (ts.isInterfaceDeclaration(node) && exported(node)) {
-      for (const member of node.members) if (ts.isPropertySignature(member) && isAny(member.type)) lines.add(lineAt(content, member.getStart(sourceFile)));
-    }
-    ts.forEachChild(node, visit);
-  };
-  visit(sourceFile);
-  return [...lines].sort((left, right) => left - right);
-}
-
 function analyzeFile(target: string, file: string, config: YcfConfig): Finding[] {
   const findings: Finding[] = [];
   const content = readFileSync(file, 'utf8');
@@ -353,28 +333,7 @@ function analyzeFile(target: string, file: string, config: YcfConfig): Finding[]
     evidence: `${asyncEffectsWithoutCleanup.length} useEffect callback(s) contain visible asynchronous work but no returned cleanup function. Review cancellation, subscriptions, and state updates after unmount before changing the effect.`,
     scoreImpact: Math.min(asyncEffectsWithoutCleanup.length * 2, 8)
   });
-  const suppressionLines = typescriptSuppressionLines(file, content);
-  if (suppressionLines.length > 0) findings.push({
-    id: `typescript-error-suppression:${displayPath}`,
-    ruleId: 'typescript-error-suppression',
-    severity: 'medium',
-    risk: 'report-only',
-    file: displayPath,
-    lines: suppressionLines,
-    evidence: `${suppressionLines.length} TypeScript error suppression comment(s) hide compiler feedback. Read the original error and replace the suppression only after confirming the runtime behavior.`,
-    scoreImpact: Math.min(suppressionLines.length * 3, 8)
-  });
-  const publicAnyLines = typescriptPublicAnyLines(file, content);
-  if (publicAnyLines.length > 0) findings.push({
-    id: `typescript-public-any:${displayPath}`,
-    ruleId: 'typescript-public-any',
-    severity: 'low',
-    risk: 'report-only',
-    file: displayPath,
-    lines: publicAnyLines,
-    evidence: `${publicAnyLines.length} exported TypeScript API declaration(s) use explicit any. Consumers lose useful checks; define the narrowest safe input or output type before changing callers.`,
-    scoreImpact: Math.min(publicAnyLines.length * 2, 8)
-  });
+  findings.push(...typescriptFindings(file, content, displayPath));
   return findings;
 }
 
