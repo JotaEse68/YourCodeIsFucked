@@ -59,7 +59,7 @@ When you agree with the plan, use `--yes`. YCF creates a Git checkpoint before s
 
 ![YCF audits a deliberately messy demo project, then shows a safe unfuck plan without changing files.](assets/ycf-demo.gif)
 
-This is a real run against [`examples/bad-vibe`](examples/bad-vibe): nine findings, a deterministic score and one parser-confirmed safe cleanup candidate. The demo stays read-only until `--yes` is explicitly given.
+This is a real run against [`examples/bad-vibe`](examples/bad-vibe): eleven findings, a deterministic score and one parser-confirmed safe cleanup candidate. The demo stays read-only until `--yes` is explicitly given.
 
 Every audit also reports five deterministic dimensions: **Architecture**, **Maintainability**, **Security**, **Tests**, and **Documentation**. They are calculated from observable findings and repository signals; YCF never asks an AI to make up a number.
 
