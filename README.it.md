@@ -28,3 +28,5 @@ Usa `ycf cleanup --dry-run` per vedere le modifiche sicure. Usa `ycf cleanup --y
 ## Protezioni e stato
 
 YCF non modifica automaticamente autenticazione, pagamenti, API pubbliche, schemi di database, integrazioni esterne o callback dinamici. La versione attuale include diagnostica JS/TS/React e PHP/WordPress, pulizie sicure e controllo di pubblicazione con `ycf release`.
+
+Questo repository esegue questi controlli a ogni modifica e ogni settimana. La consultazione degli avvisi sulle dipendenze è di sola lettura: può bloccare una pubblicazione non sicura, ma non aggiorna mai i pacchetti automaticamente.

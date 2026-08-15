@@ -32,3 +32,5 @@ YCF não modifica automaticamente autenticação, pagamentos, APIs públicas, es
 ## Estado atual
 
 Inclui diagnósticos JS/TS/React e PHP/WordPress, limpeza segura, relatórios, checkpoints, validação e verificação de preparação para publicação com `ycf release`. Refactors maiores continuam como planos supervisionados.
+
+Este repositório executa essas verificações a cada alteração e semanalmente. A consulta de avisos de dependências é somente leitura: pode bloquear uma publicação insegura, mas nunca atualiza pacotes automaticamente.

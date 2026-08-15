@@ -71,6 +71,8 @@ Use `ycf map` to see the detected entry points and local module connections.
 
 Use `ycf release` before publishing. It runs the audit, architecture map, declared verification scripts, Git-cleanliness and README checks, then writes a clear READY / REVIEW REQUIRED report to `.ycf/`. It never changes source code. It uses the language selected in `ycf init`; override it with `ycf release --language es`.
 
+This repository runs the same checks on every change and weekly. Its dependency advisory check is read-only: it can block an unsafe release, but it never updates packages automatically.
+
 `ycf init` lets you choose the response language and explanation level. English is the default; Spanish, Portuguese, French, German, Italian, Arabic and Chinese are also available.
 
 ## Safe by default
