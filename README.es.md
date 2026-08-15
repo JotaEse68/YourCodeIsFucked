@@ -139,6 +139,10 @@ Los adaptadores para Claude Code, Cursor y GitHub Copilot están en [`integratio
 
 La skill incluye referencias específicas para TypeScript, React, PHP y WordPress.
 
+### Publicación automática en npm
+
+El repositorio incluye el flujo de Trusted Publishing basado en tags en [`.github/workflows/publish.yml`](.github/workflows/publish.yml). Configura GitHub Actions como publisher de confianza para los dos paquetes en npm una sola vez; después, al crear un tag de release, GitHub podrá publicar con OIDC sin reutilizar contraseñas ni tokens.
+
 ## Hazlo comprensible para tu equipo
 
 `ycf init` permite elegir idioma y nivel de explicación. El inglés es el idioma por defecto; también están disponibles español, portugués, francés, alemán, italiano, árabe y chino.
