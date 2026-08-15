@@ -113,6 +113,23 @@ describe('stack detection', () => {
     expect(readFileSync(path, 'utf8')).toBe(source);
   });
 
+  it('reports TypeScript suppressions and explicit any in exported APIs without changing code', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    const path = join(directory, 'public-api.ts');
+    const source = [
+      '// @ts-ignore temporary compatibility',
+      'export function parsePayload(value: any): any { return value; }',
+      'export interface ClientOptions { metadata: any; }',
+      'function localValue(value: any): any { return value; }'
+    ].join('\n');
+    writeFileSync(path, source);
+    const findings = audit(directory).findings;
+    expect(findings).toContainEqual(expect.objectContaining({ ruleId: 'typescript-error-suppression', severity: 'medium', lines: [1] }));
+    expect(findings).toContainEqual(expect.objectContaining({ ruleId: 'typescript-public-any', lines: [2, 3] }));
+    expect(readFileSync(path, 'utf8')).toBe(source);
+  });
+
   it('recognizes WordPress hooks only inside PHP files', () => {
     const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
     temporaryDirectories.push(directory);
