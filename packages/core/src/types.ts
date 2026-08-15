@@ -34,6 +34,13 @@ export interface UnderstandReport {
     cycles: string[][];
   };
 }
+export interface ImpactReport {
+  version: 1; target: string; module: string; found: boolean; readOnly: true;
+  directDependencies: string[]; dependencies: string[];
+  directDependents: string[]; dependents: string[];
+  cycles: string[][];
+  limitation: string;
+}
 export interface VerificationCheck { name: 'lint' | 'typecheck' | 'test' | 'build'; command: string[]; status: 'passed' | 'failed' | 'skipped'; output?: string; }
 export interface VerificationReport { target: string; verifiedAt: string; checks: VerificationCheck[]; passed: boolean; }
 export interface DependencyVulnerability { name: string; severity: 'low' | 'moderate' | 'high' | 'critical' | 'unknown'; fixAvailable: boolean; }

@@ -1,6 +1,6 @@
 {
   "name": "@jotaese68/core",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "license": "Apache-2.0",
   "description": "Deterministic audit, architecture, cleanup, and verification engine for YCF.",
   "repository": { "type": "git", "url": "git+https://github.com/JotaEse68/YourCodeIsFucked.git", "directory": "packages/core" },

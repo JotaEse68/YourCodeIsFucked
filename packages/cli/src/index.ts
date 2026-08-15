@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { Command } from 'commander';
-import { aiResidueFindings, audit, cleanupDevArtifacts, createCheckpoint, dependencyAudit, dependencyAuditPlan, latestCheckpoint, loadConfig, refactorPlan, releaseCheckLabel, releaseHeading, releaseReadiness, releaseReportLabel, rollbackToCheckpoint, understand, verificationPlan, verify, writeAuditReport, writeDependencyAuditReport, writeReleaseReport, writeUnfuckReport } from '@jotaese68/core';
+import { aiResidueFindings, audit, cleanupDevArtifacts, createCheckpoint, dependencyAudit, dependencyAuditPlan, impactAnalysis, latestCheckpoint, loadConfig, refactorPlan, releaseCheckLabel, releaseHeading, releaseReadiness, releaseReportLabel, rollbackToCheckpoint, understand, verificationPlan, verify, writeAuditReport, writeDependencyAuditReport, writeReleaseReport, writeUnfuckReport } from '@jotaese68/core';
 
 // pnpm forwards a standalone `--` to package scripts on some platforms.
 if (process.argv[2] === '--') process.argv.splice(2, 1);
@@ -277,6 +277,24 @@ program.command('map [target]').description('Generate and summarize the reposito
   console.log(`Duplicate groups: ${report.duplicates.length} (${report.duplicates.filter((group) => group.kind === 'exact').length} confirmed, ${report.duplicates.filter((group) => group.kind === 'similar').length} likely)`);
   console.log(`Full map: ${join(report.target, '.ycf', 'graph.json')}`);
   if (options.html) { const htmlPath = join(report.target, '.ycf', 'architecture.html'); writeFileSync(htmlPath, architectureHtml(report), 'utf8'); console.log(`Visual map: ${htmlPath}`); }
+});
+
+program.command('impact <module> [target]').description('Explain the statically visible change surface of one module without modifying files.').option('--json', 'Emit the complete impact report as JSON.').action((module, target = '.', options) => {
+  const report = impactAnalysis(target, module);
+  if (options.json) { console.log(JSON.stringify(report, null, 2)); if (!report.found) process.exitCode = 1; return; }
+  console.log('YCF — impact analysis (read-only)');
+  console.log(`Module: ${report.module}`);
+  if (!report.found) {
+    console.log('No matching local module found. Use the path shown by `ycf map --json` or `ycf understand --json`.');
+    process.exitCode = 1;
+    return;
+  }
+  console.log(`Direct dependencies: ${report.directDependencies.length ? report.directDependencies.join(', ') : 'none found'}`);
+  console.log(`Dependencies affected downstream: ${report.dependencies.length ? report.dependencies.join(', ') : 'none found'}`);
+  console.log(`Direct dependents: ${report.directDependents.length ? report.directDependents.join(', ') : 'none found'}`);
+  console.log(`Dependents affected upstream: ${report.dependents.length ? report.dependents.join(', ') : 'none found'}`);
+  console.log(`Cycles involving this module: ${report.cycles.length}`);
+  console.log(`Caveat: ${report.limitation}`);
 });
 
 program.command('report [target]').description('Persist the current read-only audit as JSON and Markdown in .ycf.').action((target = '.') => {

@@ -38,6 +38,9 @@ cd mi-proyecto
 ycf audit
 ycf map
 
+# Pregunta qué puede afectar un cambio en un módulo (solo lectura).
+ycf impact src/checkout.ts .
+
 # Mira el plan antes de permitir cambios.
 ycf unfuck --dry-run
 ```
@@ -57,6 +60,7 @@ ycf release
 | --- | --- | --- |
 | `ycf audit` | Audita un repositorio y explica riesgos en tu idioma y nivel elegido. | No |
 | `ycf map` | Genera un mapa de arquitectura con entry points y conexiones locales detectadas. | No |
+| `ycf impact <módulo> [carpeta]` | Explica dependencias y consumidores directos y transitivos antes de tocar un módulo. Solo imports estáticos; no cambia archivos. | No |
 | `ycf ai-residue` | Busca candidatos de residuos de desarrollo e IA sin cambiar código ni atribución. | No |
 | `ycf cleanup --yes` | Elimina residuos de depuración confirmados por parser e imports nombrados seleccionados con seguridad Git. | Sí, solo tras confirmar |
 | `ycf unfuck --dry-run` | Muestra el pipeline seguro actual: auditoría, checkpoint, limpieza, verificación e informe. | No |
@@ -121,7 +125,7 @@ No para fingir que el código lo escribió un humano. Para que, lo haya escrito 
 
 YCF no es un wrapper de prompts ni una sola instrucción para un agente. Su núcleo es una CLI determinista: crea mapas, mide, comprueba seguridad Git, escribe informes y ejecuta verificaciones. Eso da a los agentes algo mejor que una opinión vaga: evidencia y guardarraíles.
 
-YCF está diseñado para trabajar junto a Codex, Claude Code y otros agentes. Skills, comandos guiados, análisis de impacto más rico y un cockpit visual local forman parte del roadmap; no se anuncian aquí como funciones ya terminadas.
+YCF está diseñado para trabajar junto a Codex, Claude Code y otros agentes. El comando `impact` muestra la superficie de cambio visible estáticamente; las skills, el análisis más profundo para frameworks y un cockpit visual local siguen en el roadmap.
 
 ## Hazlo comprensible para tu equipo
 
@@ -136,7 +140,7 @@ El motor no cambia. Solo cambia la explicación: guía clara para quien aprende,
 
 ## Roadmap
 
-El próximo gran “wow” no es una lista de avisos más bonita. Es una vista navegable de arquitectura e impacto: entender el repositorio, ver rutas críticas y saber qué puede verse afectado antes de tocar algo importante.
+El próximo gran “wow” es un cockpit visual local: navegar la arquitectura, filtrar riesgos y saber qué puede verse afectado antes de tocar algo importante.
 
 Después, un cockpit YCF local podrá leer los informes de `.ycf/` y ofrecer Auditoría, Mapa, Revisión de limpieza, Plan de refactor, Verificación y Exportar informe. Todo botón que cambie código deberá enseñar primero su plan y el Git diff.
 

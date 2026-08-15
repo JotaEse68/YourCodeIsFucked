@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { aiResidueFindings, audit, cleanupDebugStatements, cleanupDevArtifacts, dependencyAuditPlan, detectStacks, duplicateGroups, loadConfig, parseDependencyAudit, refactorPlan, releaseCheckLabel, releaseReadiness, understand, verificationPlan, writeAuditReport, writeReleaseReport, writeUnfuckReport } from './index.js';
+import { aiResidueFindings, audit, cleanupDebugStatements, cleanupDevArtifacts, dependencyAuditPlan, detectStacks, duplicateGroups, impactAnalysis, loadConfig, parseDependencyAudit, refactorPlan, releaseCheckLabel, releaseReadiness, understand, verificationPlan, writeAuditReport, writeReleaseReport, writeUnfuckReport } from './index.js';
 
 const temporaryDirectories: string[] = [];
 afterEach(() => temporaryDirectories.splice(0).forEach((directory) => rmSync(directory, { recursive: true, force: true })));
@@ -459,6 +459,16 @@ describe('stack detection', () => {
     writeFileSync(join(directory, 'first.ts'), "import { second } from './second.js';\nexport const first = second;");
     writeFileSync(join(directory, 'second.ts'), "import { first } from './first.js';\nexport const second = first;");
     expect(understand(directory).graph.cycles).toEqual([['first.ts', 'second.ts', 'first.ts']]);
+  });
+
+  it('reports direct and transitive dependencies and dependents without changing code', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    writeFileSync(join(directory, 'app.ts'), "import { feature } from './feature.js';\nexport const app = feature;");
+    writeFileSync(join(directory, 'feature.js'), "import { shared } from './shared.js';\nexport const feature = shared;");
+    writeFileSync(join(directory, 'shared.js'), 'export const shared = 1;');
+    const report = impactAnalysis(directory, 'feature.js');
+    expect(report).toMatchObject({ found: true, module: 'feature.js', directDependencies: ['shared.js'], dependencies: ['shared.js'], directDependents: ['app.ts'], dependents: ['app.ts'], readOnly: true });
   });
 
   it('reports complexity, exact duplicate blocks and unreferenced production dependencies without changing code', () => {

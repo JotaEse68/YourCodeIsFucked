@@ -17,7 +17,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@jotaese68/core": "^0.1.1",
+    "@jotaese68/core": "^0.1.2",
     "commander": "^13.1.0"
   }
 }
