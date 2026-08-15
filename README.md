@@ -140,7 +140,11 @@ Not to pretend code was written by a human. To make sure that, whoever wrote it,
 
 YCF is not just a prompt wrapper or a single agent instruction. Its core is a deterministic CLI: it maps, measures, checks Git safety, writes reports and runs verification. That gives agents something better than a vague opinion: evidence and guardrails.
 
-YCF is designed to work alongside Codex, Claude Code and other coding agents. The read-only `impact` command and local cockpit show the statically visible change surface; agent skills and richer framework-aware impact analysis remain on the roadmap.
+YCF is designed to work alongside Codex, Claude Code and other coding agents. The repository includes a reusable `skills/ycf-quality-gate` skill with the safe audit-to-verification workflow; richer framework-aware impact analysis remains on the roadmap.
+
+### Agent skill
+
+Copy `skills/ycf-quality-gate` into the skills directory of your agent, then ask it to audit the repository before making changes. It teaches the agent to explain findings, require approval, preserve Git checkpoints and verify the result.
 
 ## Make it readable for your team
 

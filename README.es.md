@@ -129,7 +129,11 @@ No para fingir que el código lo escribió un humano. Para que, lo haya escrito 
 
 YCF no es un wrapper de prompts ni una sola instrucción para un agente. Su núcleo es una CLI determinista: crea mapas, mide, comprueba seguridad Git, escribe informes y ejecuta verificaciones. Eso da a los agentes algo mejor que una opinión vaga: evidencia y guardarraíles.
 
-YCF está diseñado para trabajar junto a Codex, Claude Code y otros agentes. Los comandos `impact` y `cockpit` muestran la superficie de cambio visible estáticamente; las skills y el análisis más profundo para frameworks siguen en el roadmap.
+YCF está diseñado para trabajar junto a Codex, Claude Code y otros agentes. El repositorio incluye la skill reutilizable `skills/ycf-quality-gate` con el flujo seguro de auditoría a verificación; el análisis más profundo para frameworks sigue en el roadmap.
+
+### Skill para agentes
+
+Copia `skills/ycf-quality-gate` en la carpeta de skills de tu agente y pídele que audite el repositorio antes de cambiarlo. La skill enseña a explicar hallazgos, pedir aprobación, conservar checkpoints de Git y verificar el resultado.
 
 ## Hazlo comprensible para tu equipo
 
