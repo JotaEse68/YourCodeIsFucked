@@ -92,6 +92,27 @@ describe('stack detection', () => {
     expect(rules).toContain('react-effect-without-dependencies');
   });
 
+  it('reports async React effects without visible cleanup but accepts returned cleanup', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    const path = join(directory, 'Profile.tsx');
+    const source = [
+      "import { useEffect } from 'react';",
+      'export function Profile() {',
+      '  useEffect(() => { fetch("/profile").then(showProfile); }, []);',
+      '  useEffect(() => {',
+      '    const controller = new AbortController();',
+      '    fetch("/settings", { signal: controller.signal }).then(showSettings);',
+      '    return () => controller.abort();',
+      '  }, []);',
+      '  return <main />;',
+      '}'
+    ].join('\n');
+    writeFileSync(path, source);
+    expect(audit(directory).findings).toContainEqual(expect.objectContaining({ ruleId: 'react-async-effect-without-cleanup', lines: [3], risk: 'report-only' }));
+    expect(readFileSync(path, 'utf8')).toBe(source);
+  });
+
   it('recognizes WordPress hooks only inside PHP files', () => {
     const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
     temporaryDirectories.push(directory);

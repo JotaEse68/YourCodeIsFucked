@@ -167,6 +167,32 @@ function reactEffectsWithoutDependencies(file: string, content: string): number[
   return lines;
 }
 
+function reactAsyncEffectsWithoutCleanup(file: string, content: string): number[] {
+  if (!['.jsx', '.tsx'].includes(extname(file))) return [];
+  const sourceFile = ts.createSourceFile(file, content, ts.ScriptTarget.Latest, true, scriptKind(file));
+  const lines: number[] = [];
+  const hasAsyncWork = (node: ts.Node): boolean => {
+    let found = false;
+    const visit = (child: ts.Node): void => {
+      if (ts.isAwaitExpression(child)) found = true;
+      if (ts.isCallExpression(child) && ((ts.isIdentifier(child.expression) && child.expression.text === 'fetch') || (ts.isPropertyAccessExpression(child.expression) && ['then', 'catch', 'finally'].includes(child.expression.name.text)))) found = true;
+      ts.forEachChild(child, visit);
+    };
+    visit(node);
+    return found;
+  };
+  const hasCleanup = (body: ts.ConciseBody): boolean => ts.isBlock(body) && body.statements.some((statement) => ts.isReturnStatement(statement) && !!statement.expression && (ts.isArrowFunction(statement.expression) || ts.isFunctionExpression(statement.expression)));
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'useEffect') {
+      const callback = node.arguments[0];
+      if (callback && (ts.isArrowFunction(callback) || ts.isFunctionExpression(callback)) && hasAsyncWork(callback.body) && !hasCleanup(callback.body)) lines.push(lineAt(content, node.getStart(sourceFile)));
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return lines;
+}
+
 function analyzeFile(target: string, file: string, config: YcfConfig): Finding[] {
   const findings: Finding[] = [];
   const content = readFileSync(file, 'utf8');
@@ -294,6 +320,17 @@ function analyzeFile(target: string, file: string, config: YcfConfig): Finding[]
     lines: effectsWithoutDependencies,
     evidence: `${effectsWithoutDependencies.length} useEffect call(s) omit a dependency array. This can be intentional; review render behavior before changing it.`,
     scoreImpact: Math.min(effectsWithoutDependencies.length * 2, 8)
+  });
+  const asyncEffectsWithoutCleanup = reactAsyncEffectsWithoutCleanup(file, content);
+  if (asyncEffectsWithoutCleanup.length > 0) findings.push({
+    id: `react-async-effect-without-cleanup:${displayPath}`,
+    ruleId: 'react-async-effect-without-cleanup',
+    severity: 'low',
+    risk: 'report-only',
+    file: displayPath,
+    lines: asyncEffectsWithoutCleanup,
+    evidence: `${asyncEffectsWithoutCleanup.length} useEffect callback(s) contain visible asynchronous work but no returned cleanup function. Review cancellation, subscriptions, and state updates after unmount before changing the effect.`,
+    scoreImpact: Math.min(asyncEffectsWithoutCleanup.length * 2, 8)
   });
   return findings;
 }
