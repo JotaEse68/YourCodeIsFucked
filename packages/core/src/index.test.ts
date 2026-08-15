@@ -170,6 +170,27 @@ describe('stack detection', () => {
     expect(rules).not.toContain('wordpress-rest-route-callback-review');
   });
 
+  it('confirms explicit WordPress class and instance callbacks while marking closures for review', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    writeFileSync(join(directory, 'hooks.php'), [
+      '<?php',
+      '$controller = new Profile_Controller();',
+      "add_action('wp_ajax_static', [Profile_Controller::class, 'save']);",
+      "add_action('wp_ajax_instance', [$controller, 'save']);",
+      "add_action('wp_ajax_closure', function () { save_profile(); });",
+      "add_action('wp_ajax_unknown_instance', [$unknown_controller, 'save']);"
+    ].join('\n'));
+    writeFileSync(join(directory, 'controller.php'), [
+      '<?php', 'class Profile_Controller {',
+      "  function save() { check_ajax_referer('save'); current_user_can('edit_posts'); }", '}'
+    ].join('\n'));
+    const findings = audit(directory).findings;
+    expect(findings.filter((finding) => finding.ruleId === 'wordpress-ajax-nonce-review' || finding.ruleId === 'wordpress-ajax-capability-review')).toEqual([]);
+    expect(findings).toContainEqual(expect.objectContaining({ ruleId: 'wordpress-dynamic-callback-review', file: 'hooks.php', lines: [5], scoreImpact: 0 }));
+    expect(findings).toContainEqual(expect.objectContaining({ ruleId: 'wordpress-dynamic-callback-review', file: 'hooks.php', lines: [6], scoreImpact: 0 }));
+  });
+
   it('honours the configured file-size limit', () => {
     const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
     temporaryDirectories.push(directory);

@@ -32,6 +32,12 @@ export function wordpressFindings(displayPath: string, content: string): Finding
 interface AjaxRegistration { action: string; callback: string; file: string; line: number; public: boolean; }
 interface CallbackDefinition { file: string; line: number; body: string; }
 
+function instanceClasses(sources: WordPressSource[]): Map<string, string> {
+  const instances = new Map<string, string>();
+  for (const source of sources) for (const match of source.content.matchAll(/\$([A-Za-z_]\w*)\s*=\s*new\s+([A-Za-z_]\w*)\s*\(/g)) if (!instances.has(match[1])) instances.set(match[1], match[2]);
+  return instances;
+}
+
 function callbackDefinitions(sources: WordPressSource[]): Map<string, CallbackDefinition> {
   const definitions = new Map<string, CallbackDefinition>();
   for (const source of sources) {
@@ -77,25 +83,37 @@ function callbackDefinitions(sources: WordPressSource[]): Map<string, CallbackDe
   return definitions;
 }
 
-function ajaxRegistrations(sources: WordPressSource[]): AjaxRegistration[] {
+function ajaxRegistrations(sources: WordPressSource[], instances: Map<string, string>): AjaxRegistration[] {
   const registrations: AjaxRegistration[] = [];
   const expression = /\badd_action\s*\(\s*(['"])(wp_ajax(_nopriv)?_[A-Za-z0-9_-]+)\1\s*,\s*(['"])([A-Za-z_]\w*(?:::[A-Za-z_]\w*)?)\4/g;
   for (const source of sources) for (const match of source.content.matchAll(expression)) registrations.push({ action: match[2], callback: match[5], file: source.path, line: lineAt(source.content, match.index ?? 0), public: Boolean(match[3]) });
   const arrayExpression = /\badd_action\s*\(\s*(['"])(wp_ajax(_nopriv)?_[A-Za-z0-9_-]+)\1\s*,\s*(?:array\s*\(|\[)\s*(['"])([A-Za-z_]\w*)\4\s*,\s*(['"])([A-Za-z_]\w*)\6/g;
   for (const source of sources) for (const match of source.content.matchAll(arrayExpression)) registrations.push({ action: match[2], callback: `${match[5]}::${match[7]}`, file: source.path, line: lineAt(source.content, match.index ?? 0), public: Boolean(match[3]) });
+  const classExpression = /\badd_action\s*\(\s*(['"])(wp_ajax(_nopriv)?_[A-Za-z0-9_-]+)\1\s*,\s*(?:array\s*\(|\[)\s*([A-Za-z_]\w*)::class\s*,\s*(['"])([A-Za-z_]\w*)\5/g;
+  for (const source of sources) for (const match of source.content.matchAll(classExpression)) registrations.push({ action: match[2], callback: `${match[4]}::${match[6]}`, file: source.path, line: lineAt(source.content, match.index ?? 0), public: Boolean(match[3]) });
+  const instanceExpression = /\badd_action\s*\(\s*(['"])(wp_ajax(_nopriv)?_[A-Za-z0-9_-]+)\1\s*,\s*(?:array\s*\(|\[)\s*\$([A-Za-z_]\w*)\s*,\s*(['"])([A-Za-z_]\w*)\5/g;
+  for (const source of sources) for (const match of source.content.matchAll(instanceExpression)) {
+    const className = instances.get(match[4]);
+    if (className) registrations.push({ action: match[2], callback: `${className}::${match[6]}`, file: source.path, line: lineAt(source.content, match.index ?? 0), public: Boolean(match[3]) });
+  }
   return registrations;
 }
 
-function referencedCallback(route: string): string | undefined {
+function referencedCallback(route: string, instances: Map<string, string>): string | undefined {
   const direct = /['"]callback['"]\s*=>\s*['"]([A-Za-z_]\w*(?:::[A-Za-z_]\w*)?)['"]/.exec(route);
   if (direct) return direct[1];
   const array = /['"]callback['"]\s*=>\s*(?:array\s*\(|\[)\s*['"]([A-Za-z_]\w*)['"]\s*,\s*['"]([A-Za-z_]\w*)['"]/.exec(route);
-  return array ? `${array[1]}::${array[2]}` : undefined;
+  if (array) return `${array[1]}::${array[2]}`;
+  const classCallback = /['"]callback['"]\s*=>\s*(?:array\s*\(|\[)\s*([A-Za-z_]\w*)::class\s*,\s*['"]([A-Za-z_]\w*)['"]/.exec(route);
+  if (classCallback) return `${classCallback[1]}::${classCallback[2]}`;
+  const instanceCallback = /['"]callback['"]\s*=>\s*(?:array\s*\(|\[)\s*\$([A-Za-z_]\w*)\s*,\s*['"]([A-Za-z_]\w*)['"]/.exec(route);
+  return instanceCallback && instances.has(instanceCallback[1]) ? `${instances.get(instanceCallback[1])}::${instanceCallback[2]}` : undefined;
 }
 
 /** Checks REST access declarations and resolves explicit named route callbacks across inspected PHP files. */
 export function wordpressRestFindings(sources: WordPressSource[]): Finding[] {
   const definitions = callbackDefinitions(sources);
+  const instances = instanceClasses(sources);
   const findings: Finding[] = [];
   for (const source of sources) for (const route of source.content.matchAll(/\bregister_rest_route\s*\([\s\S]{0,2000}?\);/g)) {
     const line = lineAt(source.content, route.index ?? 0);
@@ -103,8 +121,9 @@ export function wordpressRestFindings(sources: WordPressSource[]): Finding[] {
       findings.push({ id: `wordpress-rest-route-permission:${source.path}:${line}`, ruleId: 'wordpress-rest-route-permission', severity: 'medium', risk: 'architectural', file: source.path, lines: [line], evidence: 'A WordPress REST route appears to lack a permission_callback. Confirm access control before release.', scoreImpact: 5 });
       continue;
     }
-    const callback = referencedCallback(route[0]);
+    const callback = referencedCallback(route[0], instances);
     if (callback && !definitions.has(callback)) findings.push({ id: `wordpress-rest-route-callback-review:${source.path}:${line}`, ruleId: 'wordpress-rest-route-callback-review', severity: 'medium', risk: 'architectural', file: source.path, lines: [line], evidence: `REST callback ${callback} could not be resolved in inspected PHP files. Confirm that this route will be callable after deployment.`, scoreImpact: 3 });
+    if (!callback && /['"]callback['"]\s*=>/.test(route[0])) findings.push({ id: `wordpress-dynamic-callback-review:rest:${source.path}:${line}`, ruleId: 'wordpress-dynamic-callback-review', severity: 'low', risk: 'architectural', file: source.path, lines: [line], evidence: 'REST route uses a dynamic or closure callback that YCF cannot prove statically. Confirm its loading and access controls before release.', scoreImpact: 0 });
   }
   return findings;
 }
@@ -112,9 +131,10 @@ export function wordpressRestFindings(sources: WordPressSource[]): Finding[] {
 /** Resolves simple named AJAX callbacks across PHP files before checking nonce and capability evidence. */
 export function wordpressAjaxFindings(sources: WordPressSource[]): Finding[] {
   const definitions = callbackDefinitions(sources);
+  const instances = instanceClasses(sources);
   const findings: Finding[] = [];
   const reviewed = new Set<string>();
-  for (const registration of ajaxRegistrations(sources)) {
+  for (const registration of ajaxRegistrations(sources, instances)) {
     const callback = definitions.get(registration.callback);
     const key = `${registration.action}:${registration.callback}`;
     if (reviewed.has(key)) continue;
@@ -124,6 +144,15 @@ export function wordpressAjaxFindings(sources: WordPressSource[]): Finding[] {
     if (!callback || !/\b(?:check_ajax_referer|wp_verify_nonce)\s*\(/.test(callback.body)) findings.push({ id: `wordpress-ajax-nonce-review:${registration.action}:${registration.callback}`, ruleId: 'wordpress-ajax-nonce-review', severity: 'medium', risk: 'architectural', ...location, evidence: `${callbackEvidence} Confirm nonce verification in the registered callback before release.`, scoreImpact: 5 });
     // Public wp_ajax_nopriv endpoints intentionally have no logged-in user capability to check.
     if (!registration.public && (!callback || !/\bcurrent_user_can\s*\(/.test(callback.body))) findings.push({ id: `wordpress-ajax-capability-review:${registration.action}:${registration.callback}`, ruleId: 'wordpress-ajax-capability-review', severity: 'medium', risk: 'architectural', ...location, evidence: `${callbackEvidence} Confirm authorization with current_user_can in the registered callback before release.`, scoreImpact: 5 });
+  }
+  for (const source of sources) for (const match of source.content.matchAll(/\badd_action\s*\(\s*(['"])(wp_ajax(?:_nopriv)?_[A-Za-z0-9_-]+)\1\s*,\s*(?:function\b|\$[A-Za-z_]\w*)/g)) {
+    const line = lineAt(source.content, match.index ?? 0);
+    findings.push({ id: `wordpress-dynamic-callback-review:ajax:${source.path}:${line}`, ruleId: 'wordpress-dynamic-callback-review', severity: 'low', risk: 'architectural', file: source.path, lines: [line], evidence: 'AJAX action uses a closure or runtime callback. YCF cannot prove its nonce or authorization checks statically; review the callback before release.', scoreImpact: 0 });
+  }
+  for (const source of sources) for (const match of source.content.matchAll(/\badd_action\s*\(\s*(['"])(wp_ajax(?:_nopriv)?_[A-Za-z0-9_-]+)\1\s*,\s*(?:array\s*\(|\[)\s*\$([A-Za-z_]\w*)\s*,/g)) {
+    if (instances.has(match[4])) continue;
+    const line = lineAt(source.content, match.index ?? 0);
+    findings.push({ id: `wordpress-dynamic-callback-review:ajax-instance:${source.path}:${line}`, ruleId: 'wordpress-dynamic-callback-review', severity: 'low', risk: 'architectural', file: source.path, lines: [line], evidence: `AJAX action uses instance $${match[4]}, but YCF cannot link it to a class created with new. Review the callback, nonce, and authorization before release.`, scoreImpact: 0 });
   }
   return findings;
 }
