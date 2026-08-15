@@ -99,14 +99,15 @@ function ajaxRegistrations(sources: WordPressSource[], instances: Map<string, st
   return registrations;
 }
 
-function referencedCallback(route: string, instances: Map<string, string>): string | undefined {
-  const direct = /['"]callback['"]\s*=>\s*['"]([A-Za-z_]\w*(?:::[A-Za-z_]\w*)?)['"]/.exec(route);
+function referencedCallback(route: string, key: 'callback' | 'permission_callback', instances: Map<string, string>): string | undefined {
+  const prefix = `['"]${key}['"]\\s*=>\\s*`;
+  const direct = new RegExp(`${prefix}['"]([A-Za-z_]\\w*(?:::[A-Za-z_]\\w*)?)['"]`).exec(route);
   if (direct) return direct[1];
-  const array = /['"]callback['"]\s*=>\s*(?:array\s*\(|\[)\s*['"]([A-Za-z_]\w*)['"]\s*,\s*['"]([A-Za-z_]\w*)['"]/.exec(route);
+  const array = new RegExp(`${prefix}(?:array\\s*\\(|\\[)\\s*['"]([A-Za-z_]\\w*)['"]\\s*,\\s*['"]([A-Za-z_]\\w*)['"]`).exec(route);
   if (array) return `${array[1]}::${array[2]}`;
-  const classCallback = /['"]callback['"]\s*=>\s*(?:array\s*\(|\[)\s*([A-Za-z_]\w*)::class\s*,\s*['"]([A-Za-z_]\w*)['"]/.exec(route);
+  const classCallback = new RegExp(`${prefix}(?:array\\s*\\(|\\[)\\s*([A-Za-z_]\\w*)::class\\s*,\\s*['"]([A-Za-z_]\\w*)['"]`).exec(route);
   if (classCallback) return `${classCallback[1]}::${classCallback[2]}`;
-  const instanceCallback = /['"]callback['"]\s*=>\s*(?:array\s*\(|\[)\s*\$([A-Za-z_]\w*)\s*,\s*['"]([A-Za-z_]\w*)['"]/.exec(route);
+  const instanceCallback = new RegExp(`${prefix}(?:array\\s*\\(|\\[)\\s*\\$([A-Za-z_]\\w*)\\s*,\\s*['"]([A-Za-z_]\\w*)['"]`).exec(route);
   return instanceCallback && instances.has(instanceCallback[1]) ? `${instances.get(instanceCallback[1])}::${instanceCallback[2]}` : undefined;
 }
 
@@ -121,7 +122,13 @@ export function wordpressRestFindings(sources: WordPressSource[]): Finding[] {
       findings.push({ id: `wordpress-rest-route-permission:${source.path}:${line}`, ruleId: 'wordpress-rest-route-permission', severity: 'medium', risk: 'architectural', file: source.path, lines: [line], evidence: 'A WordPress REST route appears to lack a permission_callback. Confirm access control before release.', scoreImpact: 5 });
       continue;
     }
-    const callback = referencedCallback(route[0], instances);
+    const permission = referencedCallback(route[0], 'permission_callback', instances);
+    const publicRoute = /['"]permission_callback['"]\s*=>\s*['"]__return_true['"]/.test(route[0]);
+    const protectedRoute = Boolean(permission && /\bcurrent_user_can\s*\(/.test(definitions.get(permission)?.body ?? '')) || /['"]permission_callback['"]\s*=>\s*function[\s\S]{0,1000}?\bcurrent_user_can\s*\(/.test(route[0]);
+    if (publicRoute) findings.push({ id: `wordpress-rest-route-public:${source.path}:${line}`, ruleId: 'wordpress-rest-route-public', severity: 'low', risk: 'architectural', file: source.path, lines: [line], evidence: 'REST route is explicitly public through permission_callback => __return_true. Confirm that public exposure, rate limits, and returned data are intentional.', scoreImpact: 0 });
+    else if (protectedRoute) findings.push({ id: `wordpress-rest-route-protected:${source.path}:${line}`, ruleId: 'wordpress-rest-route-protected', severity: 'low', risk: 'architectural', file: source.path, lines: [line], evidence: `REST route permission callback ${permission ?? 'closure'} contains a current_user_can check. Access is statically classified as protected.`, scoreImpact: 0 });
+    else findings.push({ id: `wordpress-rest-route-permission-review:${source.path}:${line}`, ruleId: 'wordpress-rest-route-permission-review', severity: 'medium', risk: 'architectural', file: source.path, lines: [line], evidence: 'REST route declares a permission_callback, but YCF cannot prove a current_user_can check. Review the callback and access policy before release.', scoreImpact: 3 });
+    const callback = referencedCallback(route[0], 'callback', instances);
     if (callback && !definitions.has(callback)) findings.push({ id: `wordpress-rest-route-callback-review:${source.path}:${line}`, ruleId: 'wordpress-rest-route-callback-review', severity: 'medium', risk: 'architectural', file: source.path, lines: [line], evidence: `REST callback ${callback} could not be resolved in inspected PHP files. Confirm that this route will be callable after deployment.`, scoreImpact: 3 });
     if (!callback && /['"]callback['"]\s*=>/.test(route[0])) findings.push({ id: `wordpress-dynamic-callback-review:rest:${source.path}:${line}`, ruleId: 'wordpress-dynamic-callback-review', severity: 'low', risk: 'architectural', file: source.path, lines: [line], evidence: 'REST route uses a dynamic or closure callback that YCF cannot prove statically. Confirm its loading and access controls before release.', scoreImpact: 0 });
   }

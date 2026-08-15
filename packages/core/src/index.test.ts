@@ -191,6 +191,24 @@ describe('stack detection', () => {
     expect(findings).toContainEqual(expect.objectContaining({ ruleId: 'wordpress-dynamic-callback-review', file: 'hooks.php', lines: [6], scoreImpact: 0 }));
   });
 
+  it('classifies WordPress REST access as public, protected, or requiring review', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    writeFileSync(join(directory, 'routes.php'), [
+      '<?php',
+      "register_rest_route('ycf/v1', '/public', array('callback' => 'public_route', 'permission_callback' => '__return_true'));",
+      "register_rest_route('ycf/v1', '/protected', array('callback' => 'protected_route', 'permission_callback' => 'can_manage_route'));",
+      "register_rest_route('ycf/v1', '/review', array('callback' => 'review_route', 'permission_callback' => 'custom_policy'));",
+      'function public_route() {}', 'function protected_route() {}', 'function review_route() {}',
+      "function can_manage_route() { return current_user_can('manage_options'); }",
+      'function custom_policy() { return policy_from_service(); }'
+    ].join('\n'));
+    const rules = audit(directory).findings.map((finding) => finding.ruleId);
+    expect(rules).toContain('wordpress-rest-route-public');
+    expect(rules).toContain('wordpress-rest-route-protected');
+    expect(rules).toContain('wordpress-rest-route-permission-review');
+  });
+
   it('honours the configured file-size limit', () => {
     const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
     temporaryDirectories.push(directory);
