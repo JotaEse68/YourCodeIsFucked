@@ -61,6 +61,8 @@ When you agree with the plan, use `--yes`. YCF creates a Git checkpoint before s
 
 This is a real run against [`examples/bad-vibe`](examples/bad-vibe): nine findings, a deterministic score and one parser-confirmed safe cleanup candidate. The demo stays read-only until `--yes` is explicitly given.
 
+Every audit also reports five deterministic dimensions: **Architecture**, **Maintainability**, **Security**, **Tests**, and **Documentation**. They are calculated from observable findings and repository signals; YCF never asks an AI to make up a number.
+
 ```bash
 ycf cleanup --yes
 ycf unfuck --yes
@@ -89,6 +91,16 @@ YCF currently has deterministic diagnostics for JavaScript, TypeScript, React, P
 
 These are the things YCF hunts. The names are fun; the evidence is not.
 
+<p>
+  <img src="docs/assets/demons/deadcode.png" width="72" alt="DeadCode">
+  <img src="docs/assets/demons/copypaste.png" width="72" alt="CopyPaste">
+  <img src="docs/assets/demons/godcomponent.png" width="72" alt="GodComponent">
+  <img src="docs/assets/demons/mysteryhelper.png" width="72" alt="MysteryHelper">
+  <img src="docs/assets/demons/finalfinalv3.png" width="72" alt="FinalFinalV3">
+  <img src="docs/assets/demons/todofromhell.png" width="72" alt="TODOFromHell">
+  <img src="docs/assets/demons/dependencynobodyuses.png" width="72" alt="DependencyNobodyUses">
+</p>
+
 | Demon | The boring technical translation |
 | --- | --- |
 | `DeadCode` | Code or files that need reference analysis before anyone calls them dead. |
@@ -101,7 +113,7 @@ These are the things YCF hunts. The names are fun; the evidence is not.
 
 > “It works” is not documentation. Production is not a testing framework.
 
-Every finding should tell you what was found, where it lives, why it matters, its risk, what YCF can safely do and what still needs a human decision. No imaginary metrics. No blind deletion. No pretending `grep` is architecture analysis.
+Every finding should tell you what was found, where it lives, why it matters, its risk, what YCF can safely do and what still needs a human decision. The five quality dimensions are deterministic, not AI vibes. No blind deletion. No pretending `grep` is architecture analysis.
 
 ## Serious engineering under the joke
 
