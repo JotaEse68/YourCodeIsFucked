@@ -32,6 +32,11 @@ export interface UnderstandReport {
 }
 export interface VerificationCheck { name: 'lint' | 'typecheck' | 'test' | 'build'; command: string[]; status: 'passed' | 'failed' | 'skipped'; output?: string; }
 export interface VerificationReport { target: string; verifiedAt: string; checks: VerificationCheck[]; passed: boolean; }
+export interface ReleaseCheck { name: 'git' | 'audit' | 'architecture' | 'verification' | 'documentation'; status: 'passed' | 'warning' | 'failed'; detail: string; }
+export interface ReleaseReport {
+  target: string; checkedAt: string; ready: boolean; checks: ReleaseCheck[];
+  audit: AuditReport; verification: VerificationReport; cycles: string[][];
+}
 export interface GitCheckpoint { ref: string; commit: string; createdAt: string; }
 export interface CleanupReport {
   target: string; changedFiles: Array<{ file: string; removedDebugStatements: number; removedDebugConsoleCalls: number; removedUnusedImports: number }>;

@@ -6,14 +6,18 @@ import { findGitRoot } from './git.js';
 import { writeAuditReport as persistAuditReport, writeRefactorPlan } from './reporters.js';
 import { buildRefactorPlan } from './planner.js';
 import { wordpressFindings } from './wordpress.js';
+import { createReleaseReadiness } from './release.js';
 import type { AuditReport, CleanupReport, Finding, RefactorPlan, Stack, UnderstandReport, YcfConfig } from './types.js';
-export type { AuditReport, CleanupReport, Finding, FindingRisk, GitCheckpoint, GitState, RefactorPlan, RefactorRecommendation, Stack, UnderstandReport, UnfuckReport, VerificationCheck, VerificationReport, YcfConfig } from './types.js';
+export type { AuditReport, CleanupReport, Finding, FindingRisk, GitCheckpoint, GitState, RefactorPlan, RefactorRecommendation, ReleaseCheck, ReleaseReport, Stack, UnderstandReport, UnfuckReport, VerificationCheck, VerificationReport, YcfConfig } from './types.js';
 export { defaultConfig, loadConfig } from './config.js';
 export { createCheckpoint, findGitRoot, latestCheckpoint, rollbackToCheckpoint } from './git.js';
 export { verificationPlan, verify } from './verify.js';
 export { writeUnfuckReport } from './reporters.js';
+export { writeReleaseReport } from './reporters.js';
 
 const sourceExtensions = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.php']);
+
+export const releaseReadiness = createReleaseReadiness(audit, understand);
 
 function walk(directory: string, ignored = ignoredDirectories): string[] {
   const result: string[] = [];

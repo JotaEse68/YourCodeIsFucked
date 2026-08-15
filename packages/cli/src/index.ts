@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { Command } from 'commander';
-import { aiResidueFindings, audit, cleanupDevArtifacts, createCheckpoint, latestCheckpoint, loadConfig, refactorPlan, rollbackToCheckpoint, understand, verificationPlan, verify, writeAuditReport, writeUnfuckReport } from '@ycf/core';
+import { aiResidueFindings, audit, cleanupDevArtifacts, createCheckpoint, latestCheckpoint, loadConfig, refactorPlan, releaseReadiness, rollbackToCheckpoint, understand, verificationPlan, verify, writeAuditReport, writeReleaseReport, writeUnfuckReport } from '@ycf/core';
 
 // pnpm forwards a standalone `--` to package scripts on some platforms.
 if (process.argv[2] === '--') process.argv.splice(2, 1);
@@ -276,6 +276,16 @@ program.command('verify [target]').description('Run available lint, typecheck, t
   const report = verify(target);
   for (const check of report.checks) console.log(`${check.status === 'passed' ? '✓' : check.status === 'failed' ? '✗' : '—'} ${check.name}${check.output ? ` — ${check.output.split(/\r?\n/).at(-1)}` : ''}`);
   if (!report.passed) process.exitCode = 1;
+});
+
+program.command('release [target]').description('Check whether a repository is ready to publish without changing source code.').option('--json', 'Emit the complete readiness report as JSON.').action((target = '.', options) => {
+  const report = releaseReadiness(target);
+  const paths = writeReleaseReport(target, report);
+  if (options.json) { console.log(JSON.stringify(report, null, 2)); return; }
+  console.log(`YCF — release readiness: ${report.ready ? 'READY' : 'REVIEW REQUIRED'}`);
+  for (const check of report.checks) console.log(`${check.status === 'passed' ? '✓' : check.status === 'failed' ? '✗' : '!' } ${check.name} — ${check.detail}`);
+  console.log(`Report: ${paths.markdownPath}`);
+  if (!report.ready) process.exitCode = 1;
 });
 
 program.command('checkpoint [target]').description('Create a YCF Git checkpoint from a clean worktree.').action((target = '.') => {

@@ -31,4 +31,4 @@ YCF não modifica automaticamente autenticação, pagamentos, APIs públicas, es
 
 ## Estado atual
 
-Inclui análise JS/TS/React, limpeza segura de artefatos de depuração e imports nomeados selecionados, relatórios, checkpoints e validação. PHP/WordPress e refactors maiores estão em desenvolvimento.
+Inclui diagnósticos JS/TS/React e PHP/WordPress, limpeza segura, relatórios, checkpoints, validação e verificação de preparação para publicação com `ycf release`. Refactors maiores continuam como planos supervisionados.

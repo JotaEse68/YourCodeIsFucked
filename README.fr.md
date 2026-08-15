@@ -27,4 +27,4 @@ Utilisez `ycf cleanup --dry-run` pour voir les changements sûrs. Lancez `ycf cl
 
 ## Protections et état
 
-YCF ne modifie jamais automatiquement l’authentification, les paiements, les API publiques, les schémas de base de données, les intégrations externes ou les callbacks dynamiques. La version actuelle analyse JS/TS/React et les nettoyages sûrs ; PHP/WordPress est en cours.
+YCF ne modifie jamais automatiquement l’authentification, les paiements, les API publiques, les schémas de base de données, les intégrations externes ou les callbacks dynamiques. La version actuelle analyse JS/TS/React et PHP/WordPress, propose des nettoyages sûrs et vérifie la préparation à la publication avec `ycf release`.

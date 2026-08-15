@@ -27,4 +27,4 @@ ycf unfuck --dry-run
 
 ## 保护与当前状态
 
-YCF 不会自动修改身份验证、支付、公共 API、数据库架构、外部集成或动态回调。当前版本支持 JS/TS/React 和安全清理；PHP/WordPress 支持正在开发中。
+YCF 不会自动修改身份验证、支付、公共 API、数据库架构、外部集成或动态回调。当前版本支持 JS/TS/React 和 PHP/WordPress 诊断、安全清理，以及通过 `ycf release` 进行发布准备检查。

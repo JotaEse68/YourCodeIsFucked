@@ -12,6 +12,7 @@ cd mi-proyecto
 ycf init
 ycf audit
 ycf unfuck --dry-run
+ycf release
 ```
 
 En `ycf init` puedes elegir idioma y nivel de explicación. Para una guía clara, elige `Español` y `guided`.
@@ -25,10 +26,12 @@ En `ycf init` puedes elegir idioma y nivel de explicación. Para una guía clara
 
 Ejecuta `ycf cleanup --dry-run` para ver cambios seguros. Solo usa `ycf cleanup --yes` cuando hayas revisado el plan; YCF crea un checkpoint Git y revierte si la verificación falla.
 
+Antes de publicar, ejecuta `ycf release`. Reúne auditoría, mapa arquitectónico, verificaciones disponibles, estado limpio de Git y README; después guarda un informe claro de **LISTO** o **REVISIÓN NECESARIA** en `.ycf/`. Nunca modifica el código fuente.
+
 ## Qué protege YCF
 
 YCF no modifica automáticamente autenticación, pagos, APIs públicas, esquemas de base de datos, integraciones externas ni callbacks dinámicos de frameworks. `ycf audit` nunca modifica el código.
 
 ## Estado actual
 
-Incluye análisis JS/TS/React, limpieza segura de artefactos de depuración e imports nombrados seleccionados, informes, checkpoints y validación. El análisis PHP/WordPress y los refactors amplios siguen en desarrollo.
+Incluye diagnósticos JS/TS/React y PHP/WordPress, limpieza segura de artefactos de depuración e imports nombrados seleccionados, informes, checkpoints, validación y control de publicación. Los refactors amplios siguen siendo planes supervisados.

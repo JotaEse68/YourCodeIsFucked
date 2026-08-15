@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import type { AuditReport, RefactorPlan, UnfuckReport } from './types.js';
+import type { AuditReport, RefactorPlan, ReleaseReport, UnfuckReport } from './types.js';
 
 export function writeAuditReport(target: string, report: AuditReport): { jsonPath: string; markdownPath: string } {
   const output = join(resolve(target), '.ycf');
@@ -32,5 +32,16 @@ export function writeRefactorPlan(target: string, plan: RefactorPlan): { jsonPat
   writeFileSync(jsonPath, JSON.stringify(plan, null, 2), 'utf8');
   const recommendations = plan.recommendations.length ? plan.recommendations.map((recommendation) => `## ${recommendation.title}\n\n- Risk: ${recommendation.risk}\n- Location: \`${recommendation.file}:${recommendation.lines.join(',')}\`\n- Why: ${recommendation.why}\n- Suggested next step: ${recommendation.suggestedAction}\n- Affected modules: ${recommendation.affectedModules.map((module) => `\`${module}\``).join(', ') || 'none detected'}\n`).join('\n') : 'No supervised refactor recommendations found.';
   writeFileSync(markdownPath, `# YCF refactor plan\n\nThis is a plan only. YCF has not modified source code.\n\n- Safe refactors to review: ${plan.summary.safeRefactors}\n- Architectural reviews: ${plan.summary.architecturalReviews}\n\n${recommendations}\n`, 'utf8');
+  return { jsonPath, markdownPath };
+}
+
+export function writeReleaseReport(target: string, report: ReleaseReport): { jsonPath: string; markdownPath: string } {
+  const output = join(resolve(target), '.ycf');
+  mkdirSync(output, { recursive: true });
+  const jsonPath = join(output, 'release-readiness.json');
+  const markdownPath = join(output, 'release-readiness.md');
+  writeFileSync(jsonPath, JSON.stringify(report, null, 2), 'utf8');
+  const checks = report.checks.map((check) => `- **${check.status.toUpperCase()}** ${check.name}: ${check.detail}`).join('\n');
+  writeFileSync(markdownPath, `# YCF release readiness\n\nResult: **${report.ready ? 'READY' : 'REVIEW REQUIRED'}**\n\nChecked: ${report.checkedAt}\n\n${checks}\n`, 'utf8');
   return { jsonPath, markdownPath };
 }

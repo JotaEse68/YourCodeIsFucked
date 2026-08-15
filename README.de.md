@@ -27,4 +27,4 @@ Mit `ycf cleanup --dry-run` siehst du sichere Änderungen. Nutze `ycf cleanup --
 
 ## Schutz und Status
 
-YCF ändert Authentifizierung, Zahlungen, öffentliche APIs, Datenbankschemata, externe Integrationen oder dynamische Callbacks nie automatisch. Aktuell werden JS/TS/React und sichere Bereinigungen unterstützt; PHP/WordPress folgt.
+YCF ändert Authentifizierung, Zahlungen, öffentliche APIs, Datenbankschemata, externe Integrationen oder dynamische Callbacks nie automatisch. Aktuell werden JS/TS/React- und PHP/WordPress-Diagnosen, sichere Bereinigungen und die Veröffentlichungsprüfung mit `ycf release` unterstützt.

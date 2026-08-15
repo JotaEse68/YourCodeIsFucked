@@ -64,9 +64,12 @@ ycf init
 ycf audit
 ycf unfuck --dry-run
 ycf refactor --dry-run
+ycf release
 ```
 
 Use `ycf map` to see the detected entry points and local module connections.
+
+Use `ycf release` before publishing. It runs the audit, architecture map, declared verification scripts, Git-cleanliness and README checks, then writes a clear READY / REVIEW REQUIRED report to `.ycf/`. It never changes source code.
 
 `ycf init` lets you choose the response language and explanation level. English is the default; Spanish, Portuguese, French, German, Italian, Arabic and Chinese are also available.
 
@@ -88,4 +91,4 @@ corepack pnpm build
 
 ## Current status
 
-YCF currently supports deterministic JS/TS/React analysis, safe cleanup of parser-confirmed debug artifacts and selected unused named imports, Git checkpoints, verification, reports and guided output. PHP/WordPress analysis and broader refactors are in progress.
+YCF currently supports deterministic JS/TS/React and PHP/WordPress diagnostics, safe cleanup of parser-confirmed debug artifacts and selected unused named imports, Git checkpoints, verification, release-readiness reports and guided output. Broader refactors remain supervised plans.
