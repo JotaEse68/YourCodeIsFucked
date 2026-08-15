@@ -267,6 +267,32 @@ describe('stack detection', () => {
     expect(findings).toMatchObject([{ lines: [2, 3], severity: 'medium', scoreImpact: 10 }]);
   });
 
+  it('requires proven protection for destructive WordPress AJAX and REST callbacks', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    const path = join(directory, 'dangerous.php');
+    writeFileSync(path, [
+      '<?php',
+      "add_action('wp_ajax_delete_account', 'delete_account');",
+      "register_rest_route('ycf/v1', '/delete', array('callback' => 'delete_post_route', 'permission_callback' => '__return_true'));",
+      'function delete_account() { wp_delete_user(42); }',
+      'function delete_post_route() { wp_delete_post(7, true); }'
+    ].join('\n'));
+    let findings = audit(directory).findings.filter((finding) => finding.ruleId === 'wordpress-destructive-operation-review');
+    expect(findings).toHaveLength(2);
+    expect(findings.map((finding) => finding.lines[0])).toEqual([4, 5]);
+    writeFileSync(path, [
+      '<?php',
+      "add_action('wp_ajax_delete_account', 'delete_account');",
+      "register_rest_route('ycf/v1', '/delete', array('callback' => 'delete_post_route', 'permission_callback' => 'can_delete_post'));",
+      "function delete_account() { check_ajax_referer('delete'); current_user_can('delete_users'); wp_delete_user(42); }",
+      'function delete_post_route() { wp_delete_post(7, true); }',
+      "function can_delete_post() { return current_user_can('delete_posts'); }"
+    ].join('\n'));
+    findings = audit(directory).findings.filter((finding) => finding.ruleId === 'wordpress-destructive-operation-review');
+    expect(findings).toEqual([]);
+  });
+
   it('honours the configured file-size limit', () => {
     const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
     temporaryDirectories.push(directory);

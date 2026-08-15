@@ -247,3 +247,41 @@ export function wordpressRestPersistenceFindings(sources: WordPressSource[]): Fi
   }
   return findings;
 }
+
+const destructiveOperation = /\b(wp_delete_(?:user|post|attachment|comment|term)|wp_trash_post|delete_(?:option|site_option|transient|post_meta|user_meta|term_meta))\s*\(/g;
+
+function restCallbackProtection(route: string, definitions: Map<string, CallbackDefinition>, instances: Map<string, string>): boolean {
+  const permission = referencedCallback(route, 'permission_callback', instances);
+  return Boolean(permission && /\bcurrent_user_can\s*\(/.test(definitions.get(permission)?.body ?? '')) || /['"]permission_callback['"]\s*=>\s*function[\s\S]{0,1000}?\bcurrent_user_can\s*\(/.test(route);
+}
+
+/** Requires explicit access evidence when a resolved AJAX or REST callback performs a destructive WordPress operation. */
+export function wordpressDestructiveOperationFindings(sources: WordPressSource[]): Finding[] {
+  const definitions = callbackDefinitions(sources);
+  const instances = instanceClasses(sources);
+  const findings: Finding[] = [];
+  const ajaxByCallback = new Map<string, string[]>();
+  for (const registration of ajaxRegistrations(sources, instances)) ajaxByCallback.set(registration.callback, [...(ajaxByCallback.get(registration.callback) ?? []), registration.action]);
+  const restProtection = new Map<string, boolean>();
+  for (const source of sources) for (const route of source.content.matchAll(/\bregister_rest_route\s*\([\s\S]{0,2000}?\);/g)) {
+    const callback = referencedCallback(route[0], 'callback', instances);
+    if (callback) restProtection.set(callback, restCallbackProtection(route[0], definitions, instances));
+  }
+  for (const [callbackName, callback] of definitions) {
+    const ajaxActions = ajaxByCallback.get(callbackName);
+    const restProtected = restProtection.get(callbackName);
+    if (!ajaxActions && restProtected === undefined) continue;
+    for (const operation of callback.body.matchAll(destructiveOperation)) {
+      const hasNonce = /\b(?:check_ajax_referer|wp_verify_nonce)\s*\(/.test(callback.body);
+      const hasCapability = /\bcurrent_user_can\s*\(/.test(callback.body);
+      const ajaxUnsafe = Boolean(ajaxActions && (!hasNonce || !hasCapability));
+      const restUnsafe = restProtected === false;
+      if (!ajaxUnsafe && !restUnsafe) continue;
+      const line = callback.line + lineAt(callback.body, operation.index ?? 0) - 1;
+      const missing = ajaxUnsafe ? [!hasNonce ? 'nonce verification' : '', !hasCapability ? 'capability check' : ''].filter(Boolean).join(' and ') : 'a proven REST permission policy';
+      const entry = ajaxUnsafe ? `AJAX action(s) ${ajaxActions!.join(', ')}` : 'a REST route';
+      findings.push({ id: `wordpress-destructive-operation-review:${callback.file}:${line}:${operation[1]}`, ruleId: 'wordpress-destructive-operation-review', severity: 'medium', risk: 'architectural', file: callback.file, lines: [line], evidence: `${operation[1]} is called by ${entry} in callback ${callbackName} without ${missing}. Confirm authorization and request protection before allowing this destructive action in production.`, scoreImpact: 5 });
+    }
+  }
+  return findings;
+}
