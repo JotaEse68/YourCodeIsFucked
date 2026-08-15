@@ -1,6 +1,6 @@
 {
   "name": "@jotaese68/ycf-cli",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "license": "Apache-2.0",
   "description": "A safe, guided command-line tool to understand, audit, and improve a codebase.",
   "repository": { "type": "git", "url": "git+https://github.com/JotaEse68/YourCodeIsFucked.git", "directory": "packages/cli" },
