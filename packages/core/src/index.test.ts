@@ -350,6 +350,19 @@ describe('stack detection', () => {
     expect(findings.map((finding) => finding.evidence).join('\n')).not.toContain('replace-this-secret');
   });
 
+  it('reports sensitive-looking repository files by path without reading their content', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    writeFileSync(join(directory, '.env'), 'TOP_SECRET_VALUE');
+    writeFileSync(join(directory, 'id_rsa'), 'PRIVATE_KEY_VALUE');
+    writeFileSync(join(directory, 'database-backup.sql'), 'DATABASE_VALUE');
+    writeFileSync(join(directory, '.env.example'), 'SAFE_EXAMPLE');
+    const findings = audit(directory).findings.filter((finding) => finding.ruleId === 'sensitive-repository-file');
+    expect(findings).toHaveLength(3);
+    expect(findings.map((finding) => finding.evidence).join('\n')).not.toContain('TOP_SECRET_VALUE');
+    expect(findings.map((finding) => finding.evidence).join('\n')).not.toContain('PRIVATE_KEY_VALUE');
+  });
+
   it('honours the configured file-size limit', () => {
     const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
     temporaryDirectories.push(directory);

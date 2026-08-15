@@ -54,6 +54,23 @@ function sourceFilesIn(target: string, config = loadConfig(target)): string[] {
   return walk(target, new Set([...ignoredDirectories, ...config.ignore])).filter((file) => sourceExtensions.has(extname(file)));
 }
 
+function sensitiveRepositoryFindings(target: string, config: YcfConfig): Finding[] {
+  const findings: Finding[] = [];
+  for (const file of walk(target, new Set([...ignoredDirectories, ...config.ignore]))) {
+    const path = relative(target, file) || file;
+    const name = basename(file).toLowerCase();
+    const secretFile = /^\.env(?:\.(?!example$|sample$|template$)[a-z0-9_-]+)?$/i.test(name)
+      || /^(?:id_rsa|id_dsa|id_ecdsa|id_ed25519)$/i.test(name)
+      || /\.(?:pem|key|p12|pfx)$/i.test(name)
+      || /^(?:credentials|service-account|firebase-adminsdk)[a-z0-9_.-]*\.json$/i.test(name)
+      || /^wp-config\.php$/i.test(name);
+    const backupFile = /\.(?:sql|sqlite|db|bak|backup)$/i.test(name) || /(?:^|[._-])backup(?:[._-]|$)/i.test(name);
+    if (!secretFile && !backupFile) continue;
+    findings.push({ id: `sensitive-repository-file:${path}`, ruleId: 'sensitive-repository-file', severity: secretFile ? 'medium' : 'low', risk: 'architectural', file: path, lines: [], evidence: `Sensitive-looking file detected by name: ${path}. YCF did not read its contents. Keep it out of commits and public deployments; use ignored local files or managed deployment secrets instead.`, scoreImpact: secretFile ? 5 : 1 });
+  }
+  return findings;
+}
+
 function lineNumbers(content: string, expression: RegExp): number[] {
   return content.split(/\r?\n/).flatMap((line, index) => expression.test(line) ? [index + 1] : []);
 }
@@ -355,6 +372,7 @@ export function audit(target: string): AuditReport {
   const wordpressSources = files.filter((file) => extname(file) === '.php').map((file) => ({ path: relative(resolvedTarget, file) || file, content: readFileSync(file, 'utf8') }));
   const findings = [
     ...files.flatMap((file) => analyzeFile(resolvedTarget, file, config)),
+    ...sensitiveRepositoryFindings(resolvedTarget, config),
     ...wordpressAjaxFindings(wordpressSources),
     ...wordpressDataFlowFindings(wordpressSources),
     ...wordpressRestFindings(wordpressSources),
