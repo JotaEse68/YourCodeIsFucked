@@ -223,6 +223,24 @@ describe('stack detection', () => {
     expect(audit(directory).findings.map((finding) => finding.ruleId)).toContain('wordpress-unsanitized-input');
   });
 
+  it('traces a REST request value into cross-file persistence and accepts visible sanitization', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    writeFileSync(join(directory, 'routes.php'), [
+      '<?php',
+      "register_rest_route('ycf/v1', '/profile', array('callback' => 'save_profile', 'permission_callback' => 'can_save_profile'));",
+      "function save_profile($request) { $name = $request->get_param('name'); persist_profile($name); }",
+      "function can_save_profile() { return current_user_can('edit_posts'); }"
+    ].join('\n'));
+    const storage = join(directory, 'storage.php');
+    writeFileSync(storage, "<?php\nfunction persist_profile($name) { update_option('profile_name', $name); }");
+    let findings = audit(directory).findings.filter((finding) => finding.ruleId === 'wordpress-rest-persistence-review');
+    expect(findings).toMatchObject([{ file: 'routes.php', risk: 'architectural', scoreImpact: 4 }]);
+    writeFileSync(storage, "<?php\nfunction persist_profile($name) { update_option('profile_name', sanitize_text_field($name)); }");
+    findings = audit(directory).findings.filter((finding) => finding.ruleId === 'wordpress-rest-persistence-review');
+    expect(findings).toEqual([]);
+  });
+
   it('honours the configured file-size limit', () => {
     const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
     temporaryDirectories.push(directory);

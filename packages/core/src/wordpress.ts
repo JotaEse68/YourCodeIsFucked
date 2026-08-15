@@ -190,3 +190,45 @@ export function wordpressDataFlowFindings(sources: WordPressSource[]): Finding[]
   }
   return findings;
 }
+
+const persistenceCall = '\\b(?:update_option|add_option|update_post_meta|update_user_meta|update_term_meta|delete_option|delete_post_meta|delete_user_meta|delete_term_meta|insert|update|query)\\s*\\([^;]*';
+
+function persistenceUse(body: string, variable: string): RegExpExecArray | null {
+  return new RegExp(`${persistenceCall}\\$${variable}\\b`).exec(body);
+}
+
+function visiblySanitized(body: string, variable: string, before: number): boolean {
+  return new RegExp(`\\b(?:sanitize_[A-Za-z_]+|absint|intval|floatval|wp_kses(?:_[A-Za-z_]+)?)\\s*\\(\\s*\\$${variable}\\b`).test(body.slice(0, before + 1));
+}
+
+/** Traces simple REST request values into WordPress persistence calls, including helpers in another inspected PHP file. */
+export function wordpressRestPersistenceFindings(sources: WordPressSource[]): Finding[] {
+  const definitions = callbackDefinitions(sources);
+  const instances = instanceClasses(sources);
+  const findings: Finding[] = [];
+  const reported = new Set<string>();
+  for (const source of sources) for (const route of source.content.matchAll(/\bregister_rest_route\s*\([\s\S]{0,2000}?\);/g)) {
+    const callbackName = referencedCallback(route[0], 'callback', instances);
+    const callback = callbackName ? definitions.get(callbackName) : undefined;
+    if (!callback) continue;
+    for (const input of callback.body.matchAll(/\$([A-Za-z_]\w*)\s*=\s*\$[A-Za-z_]\w*\s*->\s*get_(?:param|params)\s*\(/g)) {
+      const variable = input[1];
+      const direct = persistenceUse(callback.body, variable);
+      const helperCall = new RegExp(`\\b([A-Za-z_]\\w*)\\s*\\(\\s*\\$${variable}\\b`).exec(callback.body);
+      const helper = helperCall ? definitions.get(helperCall[1]) : undefined;
+      const persistedInHelper = helper && helper.file !== callback.file ? persistenceUse(helper.body, helper.parameters[0] ?? variable) : null;
+      const persistence = direct ?? persistedInHelper;
+      const persistenceBody = direct ? callback.body : helper?.body;
+      if (!persistence || !persistenceBody) continue;
+      const sanitized = visiblySanitized(direct ? callback.body : persistenceBody, direct ? variable : helper?.parameters[0] ?? variable, (persistence.index ?? 0) + persistence[0].length);
+      if (sanitized) continue;
+      const inputLine = callback.line + lineAt(callback.body, input.index ?? 0) - 1;
+      const storage = direct ? `persistence call in ${callback.file}` : `helper ${helperCall![1]} in ${helper!.file}:${helper!.line}`;
+      const key = `${callback.file}:${inputLine}:${storage}`;
+      if (reported.has(key)) continue;
+      reported.add(key);
+      findings.push({ id: `wordpress-rest-persistence-review:${callback.file}:${inputLine}:${reported.size}`, ruleId: 'wordpress-rest-persistence-review', severity: 'medium', risk: 'architectural', file: callback.file, lines: [inputLine], evidence: `REST request value $${variable} from callback ${callbackName} reaches a WordPress ${storage} without visible sanitization. Validate the expected type and sanitize it before storing.`, scoreImpact: 4 });
+    }
+  }
+  return findings;
+}
