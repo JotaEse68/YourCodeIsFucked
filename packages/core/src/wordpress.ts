@@ -30,7 +30,7 @@ export function wordpressFindings(displayPath: string, content: string): Finding
 }
 
 interface AjaxRegistration { action: string; callback: string; file: string; line: number; public: boolean; }
-interface CallbackDefinition { file: string; line: number; body: string; }
+interface CallbackDefinition { file: string; line: number; body: string; parameters: string[]; }
 
 function instanceClasses(sources: WordPressSource[]): Map<string, string> {
   const instances = new Map<string, string>();
@@ -41,7 +41,7 @@ function instanceClasses(sources: WordPressSource[]): Map<string, string> {
 function callbackDefinitions(sources: WordPressSource[]): Map<string, CallbackDefinition> {
   const definitions = new Map<string, CallbackDefinition>();
   for (const source of sources) {
-    const expression = /\bfunction\s+([A-Za-z_]\w*)\s*\([^)]*\)\s*\{/g;
+    const expression = /\bfunction\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*\{/g;
     for (const match of source.content.matchAll(expression)) {
       const openBrace = (match.index ?? 0) + match[0].lastIndexOf('{');
       let depth = 0;
@@ -51,7 +51,7 @@ function callbackDefinitions(sources: WordPressSource[]): Map<string, CallbackDe
         if (source.content[end] === '}') depth -= 1;
         if (depth === 0) break;
       }
-      if (depth === 0 && !definitions.has(match[1])) definitions.set(match[1], { file: source.path, line: lineAt(source.content, match.index ?? 0), body: source.content.slice(openBrace, end + 1) });
+      if (depth === 0 && !definitions.has(match[1])) definitions.set(match[1], { file: source.path, line: lineAt(source.content, match.index ?? 0), body: source.content.slice(openBrace, end + 1), parameters: [...match[2].matchAll(/\$([A-Za-z_]\w*)/g)].map((parameter) => parameter[1]) });
     }
     const classes = /\bclass\s+([A-Za-z_]\w*)[^{}]*\{/g;
     for (const classMatch of source.content.matchAll(classes)) {
@@ -65,7 +65,7 @@ function callbackDefinitions(sources: WordPressSource[]): Map<string, CallbackDe
       }
       if (classDepth !== 0) continue;
       const classBody = source.content.slice(classOpenBrace + 1, classEnd);
-      const methods = /\bfunction\s+([A-Za-z_]\w*)\s*\([^)]*\)\s*\{/g;
+      const methods = /\bfunction\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*\{/g;
       for (const methodMatch of classBody.matchAll(methods)) {
         const methodOpenBrace = classOpenBrace + 1 + (methodMatch.index ?? 0) + methodMatch[0].lastIndexOf('{');
         let methodDepth = 0;
@@ -76,7 +76,7 @@ function callbackDefinitions(sources: WordPressSource[]): Map<string, CallbackDe
           if (methodDepth === 0) break;
         }
         const key = `${classMatch[1]}::${methodMatch[1]}`;
-        if (methodDepth === 0 && !definitions.has(key)) definitions.set(key, { file: source.path, line: lineAt(source.content, classOpenBrace + 1 + (methodMatch.index ?? 0)), body: source.content.slice(methodOpenBrace, methodEnd + 1) });
+        if (methodDepth === 0 && !definitions.has(key)) definitions.set(key, { file: source.path, line: lineAt(source.content, classOpenBrace + 1 + (methodMatch.index ?? 0)), body: source.content.slice(methodOpenBrace, methodEnd + 1), parameters: [...methodMatch[2].matchAll(/\$([A-Za-z_]\w*)/g)].map((parameter) => parameter[1]) });
       }
     }
   }
@@ -160,6 +160,33 @@ export function wordpressAjaxFindings(sources: WordPressSource[]): Finding[] {
     if (instances.has(match[4])) continue;
     const line = lineAt(source.content, match.index ?? 0);
     findings.push({ id: `wordpress-dynamic-callback-review:ajax-instance:${source.path}:${line}`, ruleId: 'wordpress-dynamic-callback-review', severity: 'low', risk: 'architectural', file: source.path, lines: [line], evidence: `AJAX action uses instance $${match[4]}, but YCF cannot link it to a class created with new. Review the callback, nonce, and authorization before release.`, scoreImpact: 0 });
+  }
+  return findings;
+}
+
+/** Links simple request-input flows from resolved AJAX callbacks to helpers in another inspected PHP file. */
+export function wordpressDataFlowFindings(sources: WordPressSource[]): Finding[] {
+  const definitions = callbackDefinitions(sources);
+  const instances = instanceClasses(sources);
+  const findings: Finding[] = [];
+  const reported = new Set<string>();
+  for (const registration of ajaxRegistrations(sources, instances)) {
+    const callback = definitions.get(registration.callback);
+    if (!callback) continue;
+    for (const input of callback.body.matchAll(/\$([A-Za-z_]\w*)\s*=\s*\$_(?:GET|POST|REQUEST|COOKIE)\s*\[/g)) {
+      const variable = input[1];
+      const call = new RegExp(`\\b([A-Za-z_]\\w*)\\s*\\(\\s*\\$${variable}\\b`).exec(callback.body);
+      const helper = call ? definitions.get(call[1]) : undefined;
+      if (!helper || helper.file === callback.file) continue;
+      const key = `${registration.callback}:${variable}:${call![1]}:${helper.file}`;
+      if (reported.has(key)) continue;
+      reported.add(key);
+      const rawLine = callback.line + lineAt(callback.body, input.index ?? 0) - 1;
+      const escapedOutput = /\b(?:esc_(?:html|attr|url|js|textarea)|wp_kses)\s*\(/.test(helper.body);
+      const directOutput = /\becho\s+\$/.test(helper.body);
+      const outputEvidence = escapedOutput ? 'The helper contains visible WordPress escaping for output.' : directOutput ? 'The helper directly echoes a variable without visible escaping.' : 'No visible output escaping was found in the helper body.';
+      findings.push({ id: `wordpress-cross-file-data-flow-review:${callback.file}:${rawLine}:${helper.file}`, ruleId: 'wordpress-cross-file-data-flow-review', severity: 'low', risk: 'architectural', file: callback.file, lines: [rawLine], evidence: `Request value $${variable} flows from AJAX callback ${registration.callback} to helper ${call![1]} in ${helper.file}:${helper.line}. ${outputEvidence} Validate and sanitize input before use even when output is escaped.`, scoreImpact: 0 });
+    }
   }
   return findings;
 }

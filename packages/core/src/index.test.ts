@@ -209,6 +209,20 @@ describe('stack detection', () => {
     expect(rules).toContain('wordpress-rest-route-permission-review');
   });
 
+  it('traces raw AJAX input into an escaped helper in another PHP file without claiming input is sanitized', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    writeFileSync(join(directory, 'hooks.php'), [
+      '<?php', "add_action('wp_ajax_render_profile', 'render_profile_callback');",
+      "function render_profile_callback() { check_ajax_referer('profile'); current_user_can('read'); $name = $_POST['name']; render_profile($name); }"
+    ].join('\n'));
+    writeFileSync(join(directory, 'view.php'), "<?php\nfunction render_profile($name) { echo esc_html($name); }");
+    const flow = audit(directory).findings.find((finding) => finding.ruleId === 'wordpress-cross-file-data-flow-review');
+    expect(flow).toMatchObject({ file: 'hooks.php', risk: 'architectural', scoreImpact: 0 });
+    expect(flow?.evidence).toContain('visible WordPress escaping');
+    expect(audit(directory).findings.map((finding) => finding.ruleId)).toContain('wordpress-unsanitized-input');
+  });
+
   it('honours the configured file-size limit', () => {
     const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
     temporaryDirectories.push(directory);

@@ -5,7 +5,7 @@ import { ignoredDirectories, loadConfig } from './config.js';
 import { findGitRoot } from './git.js';
 import { writeAuditReport as persistAuditReport, writeRefactorPlan } from './reporters.js';
 import { buildRefactorPlan } from './planner.js';
-import { wordpressAjaxFindings, wordpressFindings, wordpressRestFindings } from './wordpress.js';
+import { wordpressAjaxFindings, wordpressDataFlowFindings, wordpressFindings, wordpressRestFindings } from './wordpress.js';
 import { createReleaseReadiness } from './release.js';
 import type { AuditReport, CleanupReport, Finding, RefactorPlan, Stack, UnderstandReport, YcfConfig } from './types.js';
 export type { AuditReport, CleanupReport, Finding, FindingRisk, GitCheckpoint, GitState, RefactorPlan, RefactorRecommendation, ReleaseCheck, ReleaseReport, Stack, UnderstandReport, UnfuckReport, VerificationCheck, VerificationReport, YcfConfig } from './types.js';
@@ -356,6 +356,7 @@ export function audit(target: string): AuditReport {
   const findings = [
     ...files.flatMap((file) => analyzeFile(resolvedTarget, file, config)),
     ...wordpressAjaxFindings(wordpressSources),
+    ...wordpressDataFlowFindings(wordpressSources),
     ...wordpressRestFindings(wordpressSources),
     ...dependencyFindings(resolvedTarget, files),
     ...duplicateFindings(resolvedTarget, files)
