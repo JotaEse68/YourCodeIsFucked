@@ -22,6 +22,7 @@ export interface UnderstandReport {
   modules: Array<{ path: string; extension: string; lines: number }>;
   dependencies: Array<{ from: string; to: string }>;
   hotspots: Array<{ path: string; lines: number; reason: string }>;
+  duplicates: Array<{ id: string; lines: number; occurrences: Array<{ file: string; startLine: number; endLine: number }> }>;
   risks: Finding[];
   graph: {
     nodes: Array<{ id: string; file: string; kind: 'module' | 'entry-point'; entryPoint: boolean }>;

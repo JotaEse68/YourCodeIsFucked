@@ -301,10 +301,8 @@ function dependencyFindings(target: string, files: string[]): Finding[] {
   }));
 }
 
-function duplicateFindings(target: string, files: string[]): Finding[] {
-  const seen = new Map<string, { file: string; line: number }>();
-  const findings: Finding[] = [];
-  const reported = new Set<string>();
+export function duplicateGroups(target: string, files: string[]): Array<{ id: string; lines: number; occurrences: Array<{ file: string; startLine: number; endLine: number }> }> {
+  const blocks = new Map<string, Array<{ file: string; startLine: number; endLine: number }>>();
   for (const file of files) {
     const displayPath = relative(target, file);
     const normalized = readFileSync(file, 'utf8').split(/\r?\n/).map((line) => line.replace(/\/\/.*$/, '').replace(/\s+/g, ' ').trim());
@@ -312,24 +310,30 @@ function duplicateFindings(target: string, files: string[]): Finding[] {
       const block = normalized.slice(index, index + 6);
       if (block.some((line) => !line) || block.join('').length < 80) continue;
       const key = block.join('\n');
-      const previous = seen.get(key);
-      if (!previous) { seen.set(key, { file: displayPath, line: index + 1 }); continue; }
-      const id = `duplicate-code:${previous.file}:${previous.line}:${displayPath}:${index + 1}`;
-      if (reported.has(id)) continue;
-      reported.add(id);
-      findings.push({
-        id,
-        ruleId: 'duplicate-code',
-        severity: 'medium',
-        risk: 'report-only',
-        file: displayPath,
-        lines: [index + 1, index + 6],
-        evidence: `Exact normalized six-line block also appears in ${previous.file}:${previous.line}. Review behavior and consumers before consolidation.`,
-        scoreImpact: 4
-      });
+      const occurrences = blocks.get(key) ?? [];
+      occurrences.push({ file: displayPath, startLine: index + 1, endLine: index + 6 });
+      blocks.set(key, occurrences);
     }
   }
-  return findings;
+  return [...blocks.values()]
+    .filter((occurrences) => occurrences.length > 1)
+    .map((occurrences) => ({ id: `duplicate-code:${occurrences.map((occurrence) => `${occurrence.file}:${occurrence.startLine}`).join(':')}`, lines: 6, occurrences }));
+}
+
+function duplicateFindings(target: string, files: string[]): Finding[] {
+  return duplicateGroups(target, files).map((group) => {
+    const [, ...copies] = group.occurrences;
+    return {
+      id: group.id,
+      ruleId: 'duplicate-code',
+      severity: 'medium',
+      risk: 'report-only',
+      file: copies[0].file,
+      lines: [copies[0].startLine, copies[0].endLine],
+      evidence: `Exact normalized ${group.lines}-line block appears in ${group.occurrences.length} locations (${group.occurrences.map((occurrence) => `${occurrence.file}:${occurrence.startLine}`).join(', ')}). Review behavior and consumers before consolidation.`,
+      scoreImpact: Math.min(8, 2 + copies.length * 2)
+    };
+  });
 }
 
 export function calculateScore(findings: Finding[]): AuditReport['score'] {
@@ -489,7 +493,8 @@ function markdownArchitecture(report: UnderstandReport): string {
   const hotspotText = report.hotspots.length ? report.hotspots.map((hotspot) => `- \`${hotspot.path}\` — ${hotspot.reason}`).join('\n') : '- No hotspots above the configured file-size threshold.';
   const entryPoints = report.graph.nodes.filter((node) => node.entryPoint).map((node) => `- \`${node.file}\``).join('\n') || '- No static entry-point candidate found.';
   const cycleText = report.graph.cycles.length ? report.graph.cycles.map((cycle) => `- ${cycle.map((node) => `\`${node}\``).join(' → ')}`).join('\n') : '- No local dependency cycles found.';
-  return `# YCF architecture report\n\nGenerated: ${report.generatedAt}\n\n## Overview\n\n- Stacks: ${stackText}\n- Source files: ${report.sourceFiles}\n- Local dependency edges: ${report.dependencies.length}\n\n## Entry-point candidates\n\n${entryPoints}\n\n## Dependency cycles\n\n${cycleText}\n\n## Hotspots\n\n${hotspotText}\n`;
+  const duplicateText = report.duplicates.length ? report.duplicates.map((group) => `- ${group.occurrences.length} copies: ${group.occurrences.map((occurrence) => `\`${occurrence.file}:${occurrence.startLine}\``).join(', ')}`).join('\n') : '- No exact duplicate blocks found.';
+  return `# YCF architecture report\n\nGenerated: ${report.generatedAt}\n\n## Overview\n\n- Stacks: ${stackText}\n- Source files: ${report.sourceFiles}\n- Local dependency edges: ${report.dependencies.length}\n\n## Entry-point candidates\n\n${entryPoints}\n\n## Dependency cycles\n\n${cycleText}\n\n## Duplicate code groups\n\n${duplicateText}\n\n## Hotspots\n\n${hotspotText}\n`;
 }
 
 export function understand(target: string): UnderstandReport {
@@ -500,6 +505,7 @@ export function understand(target: string): UnderstandReport {
   const modules = files.map((file) => ({ path: relative(resolvedTarget, file), extension: extname(file), lines: readFileSync(file, 'utf8').split(/\r?\n/).length }));
   const entryPoints = entryPointPaths(resolvedTarget, modules);
   const dependencies = files.flatMap((file) => localDependencies(resolvedTarget, file, knownPaths).map((to) => ({ from: relative(resolvedTarget, file), to })));
+  const duplicates = duplicateGroups(resolvedTarget, files);
   const connectionCount = new Map(modules.map((module) => [module.path, 0]));
   for (const dependency of dependencies) {
     connectionCount.set(dependency.from, (connectionCount.get(dependency.from) ?? 0) + 1);
@@ -515,7 +521,7 @@ export function understand(target: string): UnderstandReport {
   const risks = audit(resolvedTarget).findings;
   const report: UnderstandReport = {
     version: 1, target: resolvedTarget, generatedAt: new Date().toISOString(), stacks: detectStacks(resolvedTarget), sourceFiles: files.length,
-    modules, dependencies, hotspots, risks,
+    modules, dependencies, hotspots, duplicates, risks,
     graph: {
       nodes: modules.map((module) => ({ id: module.path, file: module.path, kind: entryPoints.has(module.path) ? 'entry-point' as const : 'module' as const, entryPoint: entryPoints.has(module.path) })),
       edges: dependencies.map((dependency) => ({ from: dependency.from, to: dependency.to, kind: 'import' as const })),
@@ -528,6 +534,7 @@ export function understand(target: string): UnderstandReport {
   writeFileSync(join(output, 'dependencies.json'), JSON.stringify(report.dependencies, null, 2), 'utf8');
   writeFileSync(join(output, 'modules.json'), JSON.stringify(report.modules, null, 2), 'utf8');
   writeFileSync(join(output, 'hotspots.json'), JSON.stringify(report.hotspots, null, 2), 'utf8');
+  writeFileSync(join(output, 'duplicates.json'), JSON.stringify(report.duplicates, null, 2), 'utf8');
   writeFileSync(join(output, 'risks.json'), JSON.stringify(report.risks, null, 2), 'utf8');
   writeFileSync(join(output, 'graph.json'), JSON.stringify(report.graph, null, 2), 'utf8');
   return report;

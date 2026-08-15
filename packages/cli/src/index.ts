@@ -162,6 +162,7 @@ program.command('map [target]').description('Generate and summarize the reposito
   console.log(`Entry-point candidates: ${entryPoints.length ? entryPoints.map((node) => node.file).join(', ') : 'none found'}`);
   console.log(`Dependency cycles: ${report.graph.cycles.length}`);
   console.log(`Hotspots: ${report.hotspots.length}`);
+  console.log(`Exact duplicate groups: ${report.duplicates.length}`);
   console.log(`Full map: ${join(report.target, '.ycf', 'graph.json')}`);
 });
 

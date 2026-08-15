@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { aiResidueFindings, audit, cleanupDebugStatements, cleanupDevArtifacts, detectStacks, loadConfig, understand, verificationPlan, writeAuditReport, writeUnfuckReport } from './index.js';
+import { aiResidueFindings, audit, cleanupDebugStatements, cleanupDevArtifacts, detectStacks, duplicateGroups, loadConfig, understand, verificationPlan, writeAuditReport, writeUnfuckReport } from './index.js';
 
 const temporaryDirectories: string[] = [];
 afterEach(() => temporaryDirectories.splice(0).forEach((directory) => rmSync(directory, { recursive: true, force: true })));
@@ -172,6 +172,7 @@ describe('stack detection', () => {
     expect(rules).toContain('high-complexity');
     expect(rules).toContain('duplicate-code');
     expect(rules).toContain('unused-production-dependency');
+    expect(duplicateGroups(directory, [join(directory, 'first.js'), join(directory, 'second.js')])).toMatchObject([{ lines: 6, occurrences: [{ file: 'first.js', startLine: 1 }, { file: 'second.js', startLine: 1 }] }]);
   });
 
   it('creates a verification plan only for scripts the project declares', () => {
