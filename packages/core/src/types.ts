@@ -55,6 +55,8 @@ export interface UnfuckReport {
 export interface RefactorRecommendation {
   id: string; title: string; risk: FindingRisk; file: string; lines: number[]; why: string; suggestedAction: string;
   affectedModules: string[]; requiresHumanReview: boolean;
+  steps: Array<{ phase: 'inspect' | 'change' | 'verify'; instruction: string }>;
+  stopIf: string[];
 }
 export interface RefactorPlan {
   target: string; generatedAt: string; recommendations: RefactorRecommendation[];

@@ -509,9 +509,11 @@ describe('stack detection', () => {
     const source = ['export function processOrder() {', '  const order = loadOrder();', '  validate(order);', '  return save(order);', '}'].join('\n');
     writeFileSync(path, source);
     const result = refactorPlan(directory);
-    expect(result.plan.recommendations).toMatchObject([{ title: 'Split an oversized function', file: 'service.ts', requiresHumanReview: true }]);
+    expect(result.plan.recommendations).toMatchObject([{ title: 'Split an oversized function', file: 'service.ts', requiresHumanReview: true, steps: [{ phase: 'inspect' }, { phase: 'change' }, { phase: 'verify' }] }]);
+    expect(result.plan.recommendations[0].stopIf).toEqual(expect.arrayContaining([expect.stringContaining('public API')]));
     expect(readFileSync(path, 'utf8')).toBe(source);
     expect(existsSync(result.markdownPath)).toBe(true);
+    expect(readFileSync(result.markdownPath, 'utf8')).toContain('Stop and ask for review if');
   });
 
   it('summarizes release readiness and persists a human-readable report', () => {

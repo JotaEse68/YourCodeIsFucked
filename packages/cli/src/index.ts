@@ -333,7 +333,11 @@ program.command('refactor [target]').description('Generate a supervised refactor
   console.log(`Recommendations: ${result.plan.summary.total}`);
   console.log(`Safe refactors to review: ${result.plan.summary.safeRefactors}`);
   console.log(`Architectural reviews: ${result.plan.summary.architecturalReviews}`);
-  for (const recommendation of result.plan.recommendations) console.log(`[${recommendation.risk}] ${recommendation.file}:${recommendation.lines.join(',')} — ${recommendation.title}`);
+  for (const recommendation of result.plan.recommendations) {
+    console.log(`[${recommendation.risk}] ${recommendation.file}:${recommendation.lines.join(',')} — ${recommendation.title}`);
+    console.log(`  1. ${recommendation.steps[0].instruction}`);
+    console.log(`  Stop if: ${recommendation.stopIf[0]}`);
+  }
   console.log(`No source code changed. Plan: ${result.markdownPath}`);
 });
 
