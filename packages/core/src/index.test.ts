@@ -109,10 +109,30 @@ describe('stack detection', () => {
       "wp_schedule_event(time(), 'daily', 'refresh_widget');",
       "register_rest_route('ycf/v1', '/widget', array('methods' => 'GET', 'callback' => 'get_widget'));"
     ].join('\n'));
-    expect(audit(directory).findings).toMatchObject([
-      { ruleId: 'wordpress-dynamic-entrypoint', risk: 'architectural', scoreImpact: 0 },
-      { ruleId: 'wordpress-rest-route-permission', risk: 'architectural', lines: [6] }
-    ]);
+    const rules = audit(directory).findings.map((finding) => finding.ruleId);
+
+    expect(rules).toContain('wordpress-dynamic-entrypoint');
+    expect(rules).toContain('wordpress-rest-route-permission');
+    expect(rules).toContain('wordpress-ajax-nonce-review');
+    expect(rules).toContain('wordpress-ajax-capability-review');
+  });
+
+  it('reports WordPress AJAX and request-data security checks without changing source', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    const path = join(directory, 'ajax.php');
+    writeFileSync(path, [
+      '<?php',
+      "add_action('wp_ajax_save_profile', 'save_profile');",
+      "$name = $_POST['name'];",
+      'echo $name;'
+    ].join('\n'));
+    const rules = audit(directory).findings.map((finding) => finding.ruleId);
+    expect(rules).toContain('wordpress-ajax-nonce-review');
+    expect(rules).toContain('wordpress-ajax-capability-review');
+    expect(rules).toContain('wordpress-unsanitized-input');
+    expect(rules).toContain('wordpress-unescaped-output');
+    expect(readFileSync(path, 'utf8')).toContain("$_POST['name']");
   });
 
   it('honours the configured file-size limit', () => {

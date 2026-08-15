@@ -6,7 +6,7 @@ export type Audience = 'guided' | 'technical' | 'professional';
 export interface GitState { detected: boolean; root?: string; }
 export interface Finding {
   id: string;
-  ruleId: 'debug-statements' | 'debug-console' | 'unused-import' | 'ai-residue' | 'suspicious-filename' | 'large-source-file' | 'long-function' | 'large-react-component' | 'react-effect-without-dependencies' | 'wordpress-dynamic-entrypoint' | 'wordpress-rest-route-permission' | 'high-complexity' | 'duplicate-code' | 'unused-production-dependency';
+  ruleId: 'debug-statements' | 'debug-console' | 'unused-import' | 'ai-residue' | 'suspicious-filename' | 'large-source-file' | 'long-function' | 'large-react-component' | 'react-effect-without-dependencies' | 'wordpress-dynamic-entrypoint' | 'wordpress-rest-route-permission' | 'wordpress-ajax-nonce-review' | 'wordpress-ajax-capability-review' | 'wordpress-unsanitized-input' | 'wordpress-unescaped-output' | 'high-complexity' | 'duplicate-code' | 'unused-production-dependency';
   severity: 'low' | 'medium'; risk: FindingRisk; file: string; lines: number[]; evidence: string; scoreImpact: number;
 }
 export interface AuditReport {

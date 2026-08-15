@@ -42,6 +42,10 @@ function guidedAdvice(finding: { ruleId: string; evidence: string }, language: L
       'react-effect-without-dependencies': 'Este efecto se ejecuta tras cada render. Puede ser intencional: revisa antes de añadir dependencias.',
       'wordpress-dynamic-entrypoint': 'WordPress puede llamar este código dinámicamente. No lo borres ni lo marques como no usado sin revisar el hook o la ruta.',
       'wordpress-rest-route-permission': 'Esta ruta REST puede permitir acceso sin una comprobación de permisos. Revisa autorización antes de publicarla.',
+      'wordpress-ajax-nonce-review': 'Esta acción AJAX puede no protegerse contra solicitudes falsas. Revisa el nonce dentro del callback antes de publicarla.',
+      'wordpress-ajax-capability-review': 'Esta acción AJAX puede no comprobar permisos del usuario. Revisa capacidades dentro del callback antes de publicarla.',
+      'wordpress-unsanitized-input': 'Se usa un dato recibido desde una petición. Comprueba validación y sanitización antes de usarlo o guardarlo.',
+      'wordpress-unescaped-output': 'Se muestra una variable sin escape visible. Comprueba el tipo de dato y aplica el escape adecuado antes de mostrarlo.',
       'high-complexity': 'Esta lógica tiene muchas decisiones. Simplifícala por partes y valida cada cambio.',
       'duplicate-code': 'Hay código repetido. Comprueba que hace exactamente lo mismo antes de consolidarlo.',
       'unused-production-dependency': 'Esta dependencia parece no usarse estáticamente. Puede cargarse en tiempo de ejecución: no la elimines sin comprobarlo.'
@@ -55,6 +59,10 @@ function guidedAdvice(finding: { ruleId: string; evidence: string }, language: L
       'react-effect-without-dependencies': 'This effect runs after every render. It may be intentional; review it before adding dependencies.',
       'wordpress-dynamic-entrypoint': 'WordPress may call this code dynamically. Do not delete it or mark it unused before reviewing the hook or route.',
       'wordpress-rest-route-permission': 'This REST route may allow access without a permission check. Review authorization before release.',
+      'wordpress-ajax-nonce-review': 'This AJAX action may lack protection against forged requests. Review nonce verification inside its callback before release.',
+      'wordpress-ajax-capability-review': 'This AJAX action may not check user permissions. Review capabilities inside its callback before release.',
+      'wordpress-unsanitized-input': 'Request input is used here. Review validation and sanitization before using or storing it.',
+      'wordpress-unescaped-output': 'A variable is rendered without visible escaping. Review the data context and escape it before rendering.',
       'high-complexity': 'This logic has many decisions. Simplify it in small validated steps.',
       'duplicate-code': 'Repeated code was found. Confirm identical behavior before consolidating it.',
       'unused-production-dependency': 'This dependency appears unused statically. It may load at runtime; verify before removal.'
@@ -68,6 +76,10 @@ function guidedAdvice(finding: { ruleId: string; evidence: string }, language: L
       'react-effect-without-dependencies': 'Cet effet est exécuté après chaque rendu. Cela peut être intentionnel ; vérifiez avant d’ajouter des dépendances.',
       'wordpress-dynamic-entrypoint': 'WordPress peut appeler ce code dynamiquement. Ne le supprimez pas et ne le marquez pas comme inutilisé avant de vérifier le hook ou la route.',
       'wordpress-rest-route-permission': 'Cette route REST peut autoriser un accès sans contrôle de permission. Vérifiez l’autorisation avant la publication.',
+      'wordpress-ajax-nonce-review': 'Cette action AJAX peut manquer de protection contre les requêtes forgées. Vérifiez le nonce dans son callback avant publication.',
+      'wordpress-ajax-capability-review': 'Cette action AJAX peut ne pas vérifier les permissions de l’utilisateur. Vérifiez les capacités dans son callback avant publication.',
+      'wordpress-unsanitized-input': 'Une donnée de requête est utilisée ici. Vérifiez sa validation et sa sanitisation avant de l’utiliser ou de la stocker.',
+      'wordpress-unescaped-output': 'Une variable est affichée sans échappement visible. Vérifiez le contexte des données et échappez-la avant affichage.',
       'high-complexity': 'Cette logique contient beaucoup de décisions. Simplifiez-la par petites étapes validées.',
       'duplicate-code': 'Du code répété a été trouvé. Confirmez le même comportement avant de le consolider.',
       'unused-production-dependency': 'Cette dépendance semble inutilisée statiquement. Elle peut être chargée à l’exécution ; vérifiez avant de la supprimer.'
