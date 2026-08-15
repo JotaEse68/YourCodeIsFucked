@@ -1,106 +1,149 @@
 # YCF — YourCodeIsFucked
 
-> Your code is fucked. Let's unfuck it.
-
-**Choose your language:**
-[English](README.md) · [Español](README.es.md) · [Português](README.pt.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Italiano](README.it.md) · [العربية](README.ar.md) · [中文](README.zh.md)
-
-YCF is an open-source command-line tool that helps you understand, audit and safely improve a codebase. It does not guess who wrote the code; it finds measurable engineering problems and explains what to do next.
+> **Your code is fucked. Let's unfuck it.**
+>
+> **Tu código está jodido. Vamos a arreglarlo.**
 
 <details>
-<summary>English — What YCF does</summary>
+<summary>Read in another language</summary>
 
-YCF maps your project, finds issues, explains their risk and only applies changes it can demonstrate are safe. Start with `ycf audit`; use `ycf unfuck --dry-run` before allowing changes.
+[Español](README.es.md) · [Português](README.pt.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Italiano](README.it.md) · [العربية](README.ar.md) · [中文](README.zh.md)
 </details>
 
-<details>
-<summary>Español — Qué hace YCF</summary>
+## Use whatever you want.
 
-YCF crea un mapa del proyecto, encuentra problemas, explica su riesgo y solo aplica cambios que puede demostrar seguros. Empieza con `ycf audit`; usa `ycf unfuck --dry-run` antes de permitir cambios.
-</details>
+Claude Code · Codex · Cursor · Copilot · Gemini · Lovable · Bolt · Your own hands
 
-<details>
-<summary>Português — O que o YCF faz</summary>
+```text
+                  build fast
+                      ↓
+         YCF — the quality layer
+                      ↓
+                ship clean code
+```
 
-O YCF mapeia o projeto, encontra problemas, explica o risco e só aplica alterações comprovadamente seguras. Comece com `ycf audit` e use `ycf unfuck --dry-run` antes de permitir alterações.
-</details>
+**We don't detect AI code. We detect bad code.**
 
-<details>
-<summary>Français — Ce que fait YCF</summary>
+**No detectamos código escrito por IA. Detectamos código malo.**
 
-YCF cartographie le projet, détecte les problèmes, explique leur risque et n’applique que des changements démontrés sûrs. Commencez par `ycf audit` et utilisez `ycf unfuck --dry-run` avant d’autoriser des changements.
-</details>
+YCF is a free, open-source CLI for understanding a codebase, finding measurable engineering problems, safely cleaning confirmed residue, planning structural improvements and verifying that nothing broke. It is for the vibe coder with a great idea, the senior developer with six agent windows open, and the team that needs quality gates before shipping.
 
-<details>
-<summary>Deutsch — Was YCF macht</summary>
+Vibe coding is fun. Cleaning up after it is not.
 
-YCF erstellt eine Projektkarte, findet Probleme, erklärt das Risiko und wendet nur nachweislich sichere Änderungen an. Beginne mit `ycf audit` und nutze `ycf unfuck --dry-run` vor Änderungen.
-</details>
-
-<details>
-<summary>Italiano — Cosa fa YCF</summary>
-
-YCF crea una mappa del progetto, trova problemi, spiega il rischio e applica solo modifiche dimostrabilmente sicure. Inizia con `ycf audit` e usa `ycf unfuck --dry-run` prima di autorizzare modifiche.
-</details>
-
-<details>
-<summary>العربية — ما الذي يفعله YCF</summary>
-
-ينشئ YCF خريطة للمشروع ويكتشف المشكلات ويشرح المخاطر ولا يطبق إلا التغييرات الآمنة المثبتة. ابدأ بـ `ycf audit` واستخدم `ycf unfuck --dry-run` قبل السماح بالتغييرات.
-</details>
-
-<details>
-<summary>中文 — YCF 的作用</summary>
-
-YCF 会绘制项目结构、发现问题、解释风险，并且只应用已证明安全的变更。请先运行 `ycf audit`，在允许变更前使用 `ycf unfuck --dry-run`。
-</details>
-
-## Quick start
+## Start here
 
 ```bash
 npm install -g @jotaese68/ycf-cli
 cd your-project
-ycf init
+
+# Look first. YCF will not change your source code.
 ycf audit
+ycf map
+
+# See the plan before allowing a change.
 ycf unfuck --dry-run
-ycf refactor --dry-run
+```
+
+When you agree with the plan, use `--yes`. YCF creates a Git checkpoint before safe cleanup, verifies the result and rolls back if verification fails.
+
+```bash
+ycf cleanup --yes
+ycf unfuck --yes
+ycf verify
 ycf release
 ```
 
-Use `ycf map` to see the detected entry points and local module connections.
+## What YCF does today
 
-Use `ycf release` before publishing. It runs the audit, architecture map, declared verification scripts, Git-cleanliness and README checks, then writes a clear READY / REVIEW REQUIRED report to `.ycf/`. It never changes source code. It uses the language selected in `ycf init`; override it with `ycf release --language es`.
+| Command | What it does | Changes code? |
+| --- | --- | --- |
+| `ycf audit` | Audits a repository and explains risks in your chosen language and level. | No |
+| `ycf map` | Generates an architecture map of detected entry points and local module connections. | No |
+| `ycf ai-residue` | Finds development and AI-residue candidates without changing code or attribution. | No |
+| `ycf cleanup --yes` | Removes parser-confirmed debug residue and selected unused named imports with Git safety. | Yes, only after confirmation |
+| `ycf unfuck --dry-run` | Shows the current safe pipeline: audit, checkpoint, cleanup, verify and report. | No |
+| `ycf refactor` | Produces a supervised refactor plan instead of silently rewriting your architecture. | No |
+| `ycf verify` | Runs the available lint, typecheck, test and build scripts. | No |
+| `ycf release` | Produces a release-readiness report with audit, map, verification and Git checks. | No |
 
-This repository runs the same checks on every change and weekly. Its dependency advisory check is read-only: it can block an unsafe release, but it never updates packages automatically.
+YCF currently has deterministic diagnostics for JavaScript, TypeScript, React, PHP and WordPress. WordPress checks respect dynamic hooks, filters, shortcodes, REST routes, AJAX, cron and WooCommerce patterns: no lazy “unused means dead” guesses.
 
-`ycf init` lets you choose the response language and explanation level. English is the default; Spanish, Portuguese, French, German, Italian, Arabic and Chinese are also available.
+## Meet the demons
 
-## Safe by default
+These are the things YCF hunts. The names are fun; the evidence is not.
+
+| Demon | The boring technical translation |
+| --- | --- |
+| `DeadCode` | Code or files that need reference analysis before anyone calls them dead. |
+| `CopyPaste` | Repeated logic that deserves one clear responsibility. |
+| `GodComponent` | A file or component that knows too much, does too much and fears tests. |
+| `MysteryHelper` | A helper whose purpose, owner or callers are unclear. |
+| `FinalFinalV3` | Development residue, abandoned alternatives and “this time it is final” files. |
+| `TODOFromHell` | Old TODOs, temporary fixes and comments that became archaeological sites. |
+| `DependencyNobodyUses` | A dependency candidate that needs evidence before it leaves `node_modules`. |
+
+> “It works” is not documentation. Production is not a testing framework.
+
+Every finding should tell you what was found, where it lives, why it matters, its risk, what YCF can safely do and what still needs a human decision. No imaginary metrics. No blind deletion. No pretending `grep` is architecture analysis.
+
+## Serious engineering under the joke
+
+The copy is cheeky. The rules are deliberately conservative.
 
 - `ycf audit` never modifies source code.
-- `ycf cleanup --yes` creates a Git checkpoint, applies only allowlisted safe changes, verifies the project and rolls back if verification fails.
-- `ycf unfuck --yes` runs the current safe pipeline and writes a final report to `.ycf/`.
-- Authentication, payments, public APIs, databases and dynamic framework callbacks are never changed automatically.
+- Safe cleanup requires a clean Git worktree, a checkpoint and explicit `--yes`.
+- YCF verifies after changes and rolls back if verification fails.
+- Authentication, payments, public APIs, database schemas and dynamic framework callbacks are never changed automatically.
+- Licenses, copyright notices and required attribution are protected. Cleaning development residue is not hiding where code came from.
+- A refactor is a supervised plan until there is enough evidence to do it safely.
 
-## Development
+Linters find syntax and style problems. YCF is built to expose structural problems and tell you what to do next.
+
+## Why I built this
+
+I used AI to build faster.
+
+And it worked. For a while.
+
+Then I opened projects full of duplicated helpers, “temporary” patches from months ago, folders called `final-final-v3` and components so large they were starting to request collective bargaining.
+
+Everything worked. More or less.
+
+But explaining it to someone else, reviewing it without sweating or handing it over as something professional was another story.
+
+The annoying part? It was my own mess.
+
+I wanted to keep the speed without cleaning the crime scene in secret before anyone looked at the code.
+
+So I built YCF.
+
+Not to pretend code was written by a human. To make sure that, whoever wrote it, it is clear, maintainable, verifiable and ready to ship.
+
+## CLI first. Skills and agents next.
+
+YCF is not just a prompt wrapper or a single agent instruction. Its core is a deterministic CLI: it maps, measures, checks Git safety, writes reports and runs verification. That gives agents something better than a vague opinion: evidence and guardrails.
+
+YCF is designed to work alongside Codex, Claude Code and other coding agents. Agent skills, guided commands, richer impact analysis and a local visual cockpit are part of the roadmap; they are not marketed here as already shipped features.
+
+## Make it readable for your team
+
+`ycf init` can set the response language and explanation level. English is the default; Spanish, Portuguese, French, German, Italian, Arabic and Chinese are available.
 
 ```bash
-corepack pnpm install
-corepack pnpm typecheck
-corepack pnpm test
-corepack pnpm build
+ycf audit --language es --audience guided
+ycf audit --audience professional
 ```
 
-For contribution and security reporting guidance, see [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md). A public release still needs an intentional versioning decision; the packages are currently private and cannot be published accidentally.
+The engine stays the same. Only the explanation changes: plain guidance for people learning, technical detail for developers, or professional language for reviews and CI.
 
-## License
+## Roadmap
 
-Copyright 2026 JotaEse68. YCF is licensed under the [Apache License 2.0](LICENSE). Releases are published only through an intentional npm command after the full validation passes.
+The next big “wow” is not a prettier warning list. It is a navigable architecture and impact view: understand the repository, see critical paths and ask what may be affected before changing something important.
 
-## Planned packages
+Later, a local-first YCF cockpit can read `.ycf/` reports and offer Audit, Map, Review cleanup, Refactor plan, Verify and Export report. Any button that can change code must show its plan and Git diff before it is allowed to act.
 
-Version `0.1.4` publishes `@jotaese68/ycf-cli` for the `ycf` command and `@jotaese68/core` for the reusable engine. Run `corepack pnpm pack:check` to inspect their package contents without publishing.
+## Contributing and security
 
-## Current status
+YCF is Apache-2.0 licensed and open source. See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidance and [SECURITY.md](SECURITY.md) to report a vulnerability responsibly.
 
-YCF currently supports deterministic JS/TS/React and PHP/WordPress diagnostics, safe cleanup of parser-confirmed debug artifacts and selected unused named imports, Git checkpoints, verification, release-readiness reports and guided output. Broader refactors remain supervised plans.
+Created by [Jota Santos](https://www.jsantos.pro/).
