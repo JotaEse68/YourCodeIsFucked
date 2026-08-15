@@ -9,6 +9,7 @@ import { buildRefactorPlan } from './planner.js';
 import { wordpressAjaxFindings, wordpressDataFlowFindings, wordpressDestructiveOperationFindings, wordpressFindings, wordpressPrivilegeEscalationFindings, wordpressRestFindings, wordpressRestPersistenceFindings, wordpressSensitiveExposureFindings } from './wordpress.js';
 import { createReleaseReadiness } from './release.js';
 import { typescriptFindings } from './typescript.js';
+import { impactAnalysis as createImpactAnalysis } from './impact.js';
 import type { AuditReport, CleanupReport, DuplicateGroup, Finding, ImpactReport, RefactorPlan, Stack, UnderstandReport, YcfConfig } from './types.js';
 export type { AuditReport, CleanupReport, DependencyAuditReport, DependencyVulnerability, DuplicateGroup, Finding, FindingRisk, GitCheckpoint, GitState, ImpactReport, RefactorPlan, RefactorRecommendation, ReleaseCheck, ReleaseReport, Stack, UnderstandReport, UnfuckReport, VerificationCheck, VerificationReport, YcfConfig } from './types.js';
 export { defaultConfig, loadConfig } from './config.js';
@@ -657,39 +658,9 @@ export function understand(target: string): UnderstandReport {
   return report;
 }
 
-function impactClosure(start: string, adjacency: Map<string, string[]>): string[] {
-  const seen = new Set<string>();
-  const queue = [...(adjacency.get(start) ?? [])];
-  while (queue.length) {
-    const current = queue.shift()!;
-    if (current === start || seen.has(current)) continue;
-    seen.add(current);
-    queue.push(...(adjacency.get(current) ?? []));
-  }
-  return [...seen].sort();
-}
-
 /** Explain the statically visible change surface of one local module. Read-only. */
 export function impactAnalysis(target: string, module: string): ImpactReport {
-  const understanding = understand(target);
-  const requested = module.replaceAll('\\', '/').replace(/^\.\//, '');
-  const resolvedModule = resolve(understanding.target, module);
-  const relativeModule = relative(understanding.target, resolvedModule).replaceAll('\\', '/');
-  const node = understanding.graph.nodes.find((candidate) => candidate.id === requested || candidate.id === relativeModule);
-  const moduleId = node?.id ?? requested;
-  const outgoing = new Map<string, string[]>();
-  const incoming = new Map<string, string[]>();
-  for (const edge of understanding.graph.edges) {
-    outgoing.set(edge.from, [...(outgoing.get(edge.from) ?? []), edge.to]);
-    incoming.set(edge.to, [...(incoming.get(edge.to) ?? []), edge.from]);
-  }
-  return {
-    version: 1, target: understanding.target, module: moduleId, found: Boolean(node), readOnly: true,
-    directDependencies: [...(outgoing.get(moduleId) ?? [])].sort(), dependencies: impactClosure(moduleId, outgoing),
-    directDependents: [...(incoming.get(moduleId) ?? [])].sort(), dependents: impactClosure(moduleId, incoming),
-    cycles: understanding.graph.cycles.filter((cycle) => cycle.includes(moduleId)),
-    limitation: 'Static imports only. Dynamic loading, runtime configuration, framework callbacks, and external consumers may not appear here.'
-  };
+  return createImpactAnalysis(target, module, understand);
 }
 
 export function writeAuditReport(target: string, report = audit(target)): { jsonPath: string; markdownPath: string } {
