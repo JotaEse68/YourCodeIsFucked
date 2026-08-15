@@ -5,7 +5,7 @@ import { ignoredDirectories, loadConfig } from './config.js';
 import { findGitRoot } from './git.js';
 import { writeAuditReport as persistAuditReport, writeRefactorPlan } from './reporters.js';
 import { buildRefactorPlan } from './planner.js';
-import { wordpressFindings } from './wordpress.js';
+import { wordpressAjaxFindings, wordpressFindings } from './wordpress.js';
 import { createReleaseReadiness } from './release.js';
 import type { AuditReport, CleanupReport, Finding, RefactorPlan, Stack, UnderstandReport, YcfConfig } from './types.js';
 export type { AuditReport, CleanupReport, Finding, FindingRisk, GitCheckpoint, GitState, RefactorPlan, RefactorRecommendation, ReleaseCheck, ReleaseReport, Stack, UnderstandReport, UnfuckReport, VerificationCheck, VerificationReport, YcfConfig } from './types.js';
@@ -352,8 +352,10 @@ export function audit(target: string): AuditReport {
   if (!existsSync(resolvedTarget)) throw new Error(`Target does not exist: ${resolvedTarget}`);
   const config = loadConfig(resolvedTarget);
   const files = sourceFilesIn(resolvedTarget, config);
+  const wordpressSources = files.filter((file) => extname(file) === '.php').map((file) => ({ path: relative(resolvedTarget, file) || file, content: readFileSync(file, 'utf8') }));
   const findings = [
     ...files.flatMap((file) => analyzeFile(resolvedTarget, file, config)),
+    ...wordpressAjaxFindings(wordpressSources),
     ...dependencyFindings(resolvedTarget, files),
     ...duplicateFindings(resolvedTarget, files)
   ];
