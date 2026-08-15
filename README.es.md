@@ -26,7 +26,7 @@ En `ycf init` puedes elegir idioma y nivel de explicación. Para una guía clara
 
 Ejecuta `ycf cleanup --dry-run` para ver cambios seguros. Solo usa `ycf cleanup --yes` cuando hayas revisado el plan; YCF crea un checkpoint Git y revierte si la verificación falla.
 
-Antes de publicar, ejecuta `ycf release`. Reúne auditoría, mapa arquitectónico, verificaciones disponibles, estado limpio de Git y README; después guarda un informe claro de **LISTO** o **REVISIÓN NECESARIA** en `.ycf/`. Nunca modifica el código fuente.
+Antes de publicar, ejecuta `ycf release`. Reúne auditoría, mapa arquitectónico, verificaciones disponibles, estado limpio de Git y README; después guarda un informe claro de **LISTO** o **REVISIÓN NECESARIA** en `.ycf/`. Nunca modifica el código fuente. Usa el idioma elegido en `ycf init` o indícalo con `ycf release --language es`.
 
 ## Qué protege YCF
 

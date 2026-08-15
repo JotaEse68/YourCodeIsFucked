@@ -243,6 +243,6 @@ describe('stack detection', () => {
     const paths = writeReleaseReport(directory, report);
     expect(report.ready).toBe(true);
     expect(report.checks).toContainEqual(expect.objectContaining({ name: 'verification', status: 'warning' }));
-    expect(readFileSync(paths.markdownPath, 'utf8')).toContain('YCF release readiness');
+    expect(readFileSync(paths.markdownPath, 'utf8')).toContain('YCF — READY');
   });
 });

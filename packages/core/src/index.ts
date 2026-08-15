@@ -14,6 +14,7 @@ export { createCheckpoint, findGitRoot, latestCheckpoint, rollbackToCheckpoint }
 export { verificationPlan, verify } from './verify.js';
 export { writeUnfuckReport } from './reporters.js';
 export { writeReleaseReport } from './reporters.js';
+export { releaseCheckLabel, releaseCheckedLabel, releaseHeading, releaseReportLabel } from './i18n.js';
 
 const sourceExtensions = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.php']);
 

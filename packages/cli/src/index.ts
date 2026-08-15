@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { Command } from 'commander';
-import { aiResidueFindings, audit, cleanupDevArtifacts, createCheckpoint, latestCheckpoint, loadConfig, refactorPlan, releaseReadiness, rollbackToCheckpoint, understand, verificationPlan, verify, writeAuditReport, writeReleaseReport, writeUnfuckReport } from '@ycf/core';
+import { aiResidueFindings, audit, cleanupDevArtifacts, createCheckpoint, latestCheckpoint, loadConfig, refactorPlan, releaseCheckLabel, releaseHeading, releaseReadiness, releaseReportLabel, rollbackToCheckpoint, understand, verificationPlan, verify, writeAuditReport, writeReleaseReport, writeUnfuckReport } from '@ycf/core';
 
 // pnpm forwards a standalone `--` to package scripts on some platforms.
 if (process.argv[2] === '--') process.argv.splice(2, 1);
@@ -278,13 +278,15 @@ program.command('verify [target]').description('Run available lint, typecheck, t
   if (!report.passed) process.exitCode = 1;
 });
 
-program.command('release [target]').description('Check whether a repository is ready to publish without changing source code.').option('--json', 'Emit the complete readiness report as JSON.').action((target = '.', options) => {
+program.command('release [target]').description('Check whether a repository is ready to publish without changing source code.').option('--json', 'Emit the complete readiness report as JSON.').option('--language <language>', 'Response language: en, es, pt, fr, de, it, ar, or zh.').action((target = '.', options) => {
   const report = releaseReadiness(target);
-  const paths = writeReleaseReport(target, report);
+  const config = loadConfig(target);
+  const language = validLanguage(options.language) ? options.language : config.language;
+  const paths = writeReleaseReport(target, report, language);
   if (options.json) { console.log(JSON.stringify(report, null, 2)); return; }
-  console.log(`YCF — release readiness: ${report.ready ? 'READY' : 'REVIEW REQUIRED'}`);
-  for (const check of report.checks) console.log(`${check.status === 'passed' ? '✓' : check.status === 'failed' ? '✗' : '!' } ${check.name} — ${check.detail}`);
-  console.log(`Report: ${paths.markdownPath}`);
+  console.log(`YCF — ${releaseHeading(language, report.ready)}`);
+  for (const check of report.checks) console.log(`${check.status === 'passed' ? '✓' : check.status === 'failed' ? '✗' : '!'} ${releaseCheckLabel(language, check)}`);
+  console.log(`${releaseReportLabel(language)}: ${paths.markdownPath}`);
   if (!report.ready) process.exitCode = 1;
 });
 
