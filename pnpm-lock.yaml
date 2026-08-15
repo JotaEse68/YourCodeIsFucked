@@ -21,7 +21,7 @@ importers:
   packages/cli:
     dependencies:
       '@ycf/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       commander:
         specifier: ^13.1.0

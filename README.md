@@ -97,6 +97,10 @@ For contribution and security reporting guidance, see [CONTRIBUTING.md](CONTRIBU
 
 Copyright 2026 JotaEse68. YCF is licensed under the [Apache License 2.0](LICENSE). The repository and its packages remain private until an intentional public release is made.
 
+## Planned packages
+
+The future `0.1.0` release will publish `your-code-is-fucked` for the `ycf` command and `@ycf/core` for the reusable engine. Both are currently marked private; run `corepack pnpm pack:check` to inspect their package contents without publishing.
+
 ## Current status
 
 YCF currently supports deterministic JS/TS/React and PHP/WordPress diagnostics, safe cleanup of parser-confirmed debug artifacts and selected unused named imports, Git checkpoints, verification, release-readiness reports and guided output. Broader refactors remain supervised plans.
