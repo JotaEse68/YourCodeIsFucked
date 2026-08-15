@@ -81,6 +81,7 @@ function guidedAdvice(finding: { ruleId: string; evidence: string }, language: L
       'wordpress-unescaped-output': 'Se muestra una variable sin escape visible. Comprueba el tipo de dato y aplica el escape adecuado antes de mostrarlo.',
       'high-complexity': 'Esta lógica tiene muchas decisiones. Simplifícala por partes y valida cada cambio.',
       'duplicate-code': 'Hay código repetido. Comprueba que hace exactamente lo mismo antes de consolidarlo.',
+      'similar-duplicate-code': 'Hay código probablemente duplicado: se parece en estructura, pero puede diferir en nombres o valores. No lo unas sin comparar entradas, errores y efectos.',
       'unused-production-dependency': 'Esta dependencia parece no usarse estáticamente. Puede cargarse en tiempo de ejecución: no la elimines sin comprobarlo.'
     },
     en: {
@@ -115,6 +116,7 @@ function guidedAdvice(finding: { ruleId: string; evidence: string }, language: L
       'wordpress-unescaped-output': 'A variable is rendered without visible escaping. Review the data context and escape it before rendering.',
       'high-complexity': 'This logic has many decisions. Simplify it in small validated steps.',
       'duplicate-code': 'Repeated code was found. Confirm identical behavior before consolidating it.',
+      'similar-duplicate-code': 'Likely duplicate code was found: its structure matches but names or values may differ. Do not merge it before comparing inputs, errors, and side effects.',
       'unused-production-dependency': 'This dependency appears unused statically. It may load at runtime; verify before removal.'
     },
     fr: {
@@ -241,7 +243,7 @@ program.command('map [target]').description('Generate and summarize the reposito
   console.log(`Entry-point candidates: ${entryPoints.length ? entryPoints.map((node) => node.file).join(', ') : 'none found'}`);
   console.log(`Dependency cycles: ${report.graph.cycles.length}`);
   console.log(`Hotspots: ${report.hotspots.length}`);
-  console.log(`Exact duplicate groups: ${report.duplicates.length}`);
+  console.log(`Duplicate groups: ${report.duplicates.length} (${report.duplicates.filter((group) => group.kind === 'exact').length} confirmed, ${report.duplicates.filter((group) => group.kind === 'similar').length} likely)`);
   console.log(`Full map: ${join(report.target, '.ycf', 'graph.json')}`);
 });
 

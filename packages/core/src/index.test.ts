@@ -445,6 +445,35 @@ describe('stack detection', () => {
     expect(duplicateGroups(directory, [join(directory, 'first.js'), join(directory, 'second.js')])).toMatchObject([{ lines: 6, occurrences: [{ file: 'first.js', startLine: 1 }, { file: 'second.js', startLine: 1 }] }]);
   });
 
+  it('reports structurally similar duplicate blocks as likely and never changes them', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    const first = join(directory, 'email.js');
+    const second = join(directory, 'username.js');
+    const emailSource = [
+      'function normalizeEmail(email) {',
+      '  const cleanEmail = email.trim();',
+      "  if (!cleanEmail.includes('@')) throw new Error('invalid email');",
+      '  const loweredEmail = cleanEmail.toLowerCase();',
+      '  return loweredEmail;',
+      '}'
+    ].join('\n');
+    const usernameSource = [
+      'function normalizeUsername(username) {',
+      '  const cleanUsername = username.trim();',
+      "  if (!cleanUsername.includes('@')) throw new Error('invalid username');",
+      '  const loweredUsername = cleanUsername.toLowerCase();',
+      '  return loweredUsername;',
+      '}'
+    ].join('\n');
+    writeFileSync(first, emailSource);
+    writeFileSync(second, usernameSource);
+    expect(duplicateGroups(directory, [first, second])).toMatchObject([{ kind: 'similar', certainty: 'likely', lines: 6, occurrences: [{ file: 'email.js', startLine: 1 }, { file: 'username.js', startLine: 1 }] }]);
+    expect(audit(directory).findings).toContainEqual(expect.objectContaining({ ruleId: 'similar-duplicate-code', risk: 'report-only' }));
+    expect(readFileSync(first, 'utf8')).toBe(emailSource);
+    expect(readFileSync(second, 'utf8')).toBe(usernameSource);
+  });
+
   it('creates a verification plan only for scripts the project declares', () => {
     const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
     temporaryDirectories.push(directory);

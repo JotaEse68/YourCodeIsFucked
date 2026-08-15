@@ -6,7 +6,7 @@ export type Audience = 'guided' | 'technical' | 'professional';
 export interface GitState { detected: boolean; root?: string; }
 export interface Finding {
   id: string;
-  ruleId: 'debug-statements' | 'debug-console' | 'unused-import' | 'ai-residue' | 'suspicious-filename' | 'sensitive-repository-file' | 'sensitive-repository-file-tracked' | 'sensitive-repository-file-protected' | 'large-source-file' | 'long-function' | 'large-react-component' | 'react-effect-without-dependencies' | 'wordpress-dynamic-entrypoint' | 'wordpress-dynamic-callback-review' | 'wordpress-production-debug-config' | 'wordpress-hardcoded-config-secret' | 'wordpress-file-editor-config' | 'wordpress-rest-route-permission' | 'wordpress-rest-route-public' | 'wordpress-rest-route-protected' | 'wordpress-rest-route-permission-review' | 'wordpress-rest-route-callback-review' | 'wordpress-rest-persistence-review' | 'wordpress-wpdb-unprepared-query' | 'wordpress-destructive-operation-review' | 'wordpress-privilege-escalation-review' | 'wordpress-sensitive-data-exposure' | 'wordpress-ajax-nonce-review' | 'wordpress-ajax-capability-review' | 'wordpress-cross-file-data-flow-review' | 'wordpress-unsanitized-input' | 'wordpress-unescaped-output' | 'high-complexity' | 'duplicate-code' | 'unused-production-dependency';
+  ruleId: 'debug-statements' | 'debug-console' | 'unused-import' | 'ai-residue' | 'suspicious-filename' | 'sensitive-repository-file' | 'sensitive-repository-file-tracked' | 'sensitive-repository-file-protected' | 'large-source-file' | 'long-function' | 'large-react-component' | 'react-effect-without-dependencies' | 'wordpress-dynamic-entrypoint' | 'wordpress-dynamic-callback-review' | 'wordpress-production-debug-config' | 'wordpress-hardcoded-config-secret' | 'wordpress-file-editor-config' | 'wordpress-rest-route-permission' | 'wordpress-rest-route-public' | 'wordpress-rest-route-protected' | 'wordpress-rest-route-permission-review' | 'wordpress-rest-route-callback-review' | 'wordpress-rest-persistence-review' | 'wordpress-wpdb-unprepared-query' | 'wordpress-destructive-operation-review' | 'wordpress-privilege-escalation-review' | 'wordpress-sensitive-data-exposure' | 'wordpress-ajax-nonce-review' | 'wordpress-ajax-capability-review' | 'wordpress-cross-file-data-flow-review' | 'wordpress-unsanitized-input' | 'wordpress-unescaped-output' | 'high-complexity' | 'duplicate-code' | 'similar-duplicate-code' | 'unused-production-dependency';
   severity: 'low' | 'medium'; risk: FindingRisk; file: string; lines: number[]; evidence: string; scoreImpact: number;
 }
 export interface AuditReport {
@@ -17,12 +17,16 @@ export interface YcfConfig {
   version: 1; mode: 'conservative' | 'balanced' | 'aggressive'; language: Language; audience: Audience;
   refactor: { maxFileLines: number; maxFunctionLines: number; maxComplexity: number }; ignore: string[];
 }
+export interface DuplicateGroup {
+  id: string; kind: 'exact' | 'similar'; certainty: 'confirmed' | 'likely'; similarity: number; lines: number;
+  occurrences: Array<{ file: string; startLine: number; endLine: number }>;
+}
 export interface UnderstandReport {
   version: 1; target: string; generatedAt: string; stacks: Stack[]; sourceFiles: number;
   modules: Array<{ path: string; extension: string; lines: number }>;
   dependencies: Array<{ from: string; to: string }>;
   hotspots: Array<{ path: string; lines: number; reason: string }>;
-  duplicates: Array<{ id: string; lines: number; occurrences: Array<{ file: string; startLine: number; endLine: number }> }>;
+  duplicates: DuplicateGroup[];
   risks: Finding[];
   graph: {
     nodes: Array<{ id: string; file: string; kind: 'module' | 'entry-point'; entryPoint: boolean }>;

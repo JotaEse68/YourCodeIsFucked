@@ -1,6 +1,6 @@
 import type { AuditReport, RefactorPlan, RefactorRecommendation, UnderstandReport } from './types.js';
 
-const refactorableRules = new Set(['long-function', 'large-source-file', 'large-react-component', 'high-complexity', 'duplicate-code']);
+const refactorableRules = new Set(['long-function', 'large-source-file', 'large-react-component', 'high-complexity', 'duplicate-code', 'similar-duplicate-code']);
 
 function recommendationFor(finding: AuditReport['findings'][number], affectedModules: string[]): RefactorRecommendation | undefined {
   if (!refactorableRules.has(finding.ruleId) && finding.risk !== 'architectural') return undefined;
@@ -11,6 +11,7 @@ function recommendationFor(finding: AuditReport['findings'][number], affectedMod
     case 'large-react-component': return { ...shared, title: 'Reduce a large React component', why: finding.evidence, suggestedAction: 'Extract a presentational component or custom hook with stable inputs, then verify UI behavior.' };
     case 'high-complexity': return { ...shared, title: 'Simplify branching logic', why: finding.evidence, suggestedAction: 'Name intermediate decisions or extract one branch; preserve tests for every behavior path.' };
     case 'duplicate-code': return { ...shared, title: 'Review duplicate code before consolidation', why: finding.evidence, suggestedAction: 'Compare all copies and their consumers. Extract shared code only if behavior, error handling and contracts match.' };
+    case 'similar-duplicate-code': return { ...shared, title: 'Compare likely duplicate code before consolidation', why: finding.evidence, suggestedAction: 'The structure matches but names or values differ. Compare inputs, errors and side effects; extract shared code only after tests prove equivalent behavior.' };
     case 'wordpress-rest-route-permission': return { ...shared, title: 'Review WordPress REST authorization', why: finding.evidence, suggestedAction: 'Add or verify a permission_callback with the appropriate capability. Do not change access behavior without product approval.' };
     case 'wordpress-dynamic-entrypoint': return { ...shared, title: 'Protect a dynamic WordPress entry point', why: finding.evidence, suggestedAction: 'Document the hook or callback path. Do not delete or rename it based on static analysis.' };
     default: return undefined;
