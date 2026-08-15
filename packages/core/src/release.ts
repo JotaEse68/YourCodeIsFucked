@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { findGitRoot } from './git.js';
 import { verify } from './verify.js';
-import type { AuditReport, ReleaseCheck, ReleaseReport, UnderstandReport } from './types.js';
+import type { AuditReport, DependencyAuditReport, ReleaseCheck, ReleaseReport, UnderstandReport } from './types.js';
 
 function gitCheck(target: string): ReleaseCheck {
   const git = findGitRoot(target);
@@ -15,8 +15,8 @@ function gitCheck(target: string): ReleaseCheck {
     : { name: 'git', status: 'passed', detail: 'Git worktree is clean.' };
 }
 
-export function createReleaseReadiness(audit: (target: string) => AuditReport, understand: (target: string) => UnderstandReport): (target: string) => ReleaseReport {
-  return (target: string) => {
+export function createReleaseReadiness(audit: (target: string) => AuditReport, understand: (target: string) => UnderstandReport): (target: string, dependencyAudit?: DependencyAuditReport) => ReleaseReport {
+  return (target: string, dependencyAudit?: DependencyAuditReport) => {
     const directory = resolve(target);
     const auditReport = audit(directory);
     const architecture = understand(directory);
@@ -43,6 +43,16 @@ export function createReleaseReadiness(audit: (target: string) => AuditReport, u
         ? { name: 'documentation', status: 'passed', detail: 'README.md is present.' }
         : { name: 'documentation', status: 'warning', detail: 'README.md was not found. Add basic usage and safety documentation before publishing.' }
     ];
-    return { target: directory, checkedAt: new Date().toISOString(), ready: !checks.some((check) => check.status === 'failed'), checks, audit: auditReport, verification, cycles: architecture.graph.cycles };
+    if (dependencyAudit) {
+      const severe = dependencyAudit.vulnerabilities.filter((item) => item.severity === 'high' || item.severity === 'critical');
+      checks.push(!dependencyAudit.available
+        ? { name: 'dependencies', status: 'failed', detail: 'Dependency advisories could not be retrieved. Do not treat an unavailable network check as a clean result.' }
+        : severe.length
+          ? { name: 'dependencies', status: 'failed', detail: `${severe.length} high or critical production dependency vulnerability/vulnerabilities need review before release.` }
+          : dependencyAudit.vulnerabilities.length
+            ? { name: 'dependencies', status: 'warning', detail: `${dependencyAudit.vulnerabilities.length} low or moderate production dependency vulnerability/vulnerabilities remain to review.` }
+            : { name: 'dependencies', status: 'passed', detail: 'No production dependency vulnerabilities were reported.' });
+    }
+    return { target: directory, checkedAt: new Date().toISOString(), ready: !checks.some((check) => check.status === 'failed'), checks, audit: auditReport, verification, cycles: architecture.graph.cycles, dependencyAudit };
   };
 }

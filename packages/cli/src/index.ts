@@ -345,8 +345,8 @@ program.command('verify [target]').description('Run available lint, typecheck, t
   if (!report.passed) process.exitCode = 1;
 });
 
-program.command('release [target]').description('Check whether a repository is ready to publish without changing source code.').option('--json', 'Emit the complete readiness report as JSON.').option('--language <language>', 'Response language: en, es, pt, fr, de, it, ar, or zh.').action((target = '.', options) => {
-  const report = releaseReadiness(target);
+program.command('release [target]').description('Check whether a repository is ready to publish without changing source code.').option('--dependencies', 'Also query public production dependency advisories (read-only network check).').option('--json', 'Emit the complete readiness report as JSON.').option('--language <language>', 'Response language: en, es, pt, fr, de, it, ar, or zh.').action((target = '.', options) => {
+  const report = releaseReadiness(target, options.dependencies ? dependencyAudit(target) : undefined);
   const config = loadConfig(target);
   const language = validLanguage(options.language) ? options.language : config.language;
   const paths = writeReleaseReport(target, report, language);

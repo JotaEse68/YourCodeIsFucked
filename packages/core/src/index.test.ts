@@ -498,4 +498,23 @@ describe('stack detection', () => {
     expect(releaseCheckLabel('fr', { name: 'verification', status: 'failed', detail: 'ignored' })).toContain('ycf verify');
     expect(releaseCheckLabel('zh', { name: 'documentation', status: 'warning', detail: 'ignored' })).toContain('README.md');
   });
+
+  it('keeps dependency advisory checks opt-in and blocks high-risk results', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    writeFileSync(join(directory, 'README.md'), '# Example');
+
+    expect(releaseReadiness(directory).checks.some((check) => check.name === 'dependencies')).toBe(false);
+
+    const report = releaseReadiness(directory, {
+      target: directory,
+      auditedAt: new Date().toISOString(),
+      manager: 'pnpm',
+      command: ['corepack', 'pnpm', 'audit', '--json', '--prod'],
+      available: true,
+      vulnerabilities: [{ name: 'example-package', severity: 'high', fixAvailable: true }]
+    });
+    expect(report.ready).toBe(false);
+    expect(report.checks).toContainEqual(expect.objectContaining({ name: 'dependencies', status: 'failed' }));
+  });
 });
