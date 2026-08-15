@@ -78,6 +78,16 @@ YCF incluye diagnósticos deterministas para JavaScript, TypeScript, React, PHP 
 
 Son las cosas que YCF persigue. Los nombres son divertidos; la evidencia no se inventa.
 
+<p>
+  <img src="docs/assets/demons/deadcode.png" width="72" alt="DeadCode">
+  <img src="docs/assets/demons/copypaste.png" width="72" alt="CopyPaste">
+  <img src="docs/assets/demons/godcomponent.png" width="72" alt="GodComponent">
+  <img src="docs/assets/demons/mysteryhelper.png" width="72" alt="MysteryHelper">
+  <img src="docs/assets/demons/finalfinalv3.png" width="72" alt="FinalFinalV3">
+  <img src="docs/assets/demons/todofromhell.png" width="72" alt="TODOFromHell">
+  <img src="docs/assets/demons/dependencynobodyuses.png" width="72" alt="DependencyNobodyUses">
+</p>
+
 | Demonio | Traducción técnica aburrida |
 | --- | --- |
 | `DeadCode` | Código o archivos que necesitan análisis de referencias antes de llamarlos muertos. |
@@ -90,7 +100,7 @@ Son las cosas que YCF persigue. Los nombres son divertidos; la evidencia no se i
 
 > “Funciona” no es documentación. Producción no es un framework de testing.
 
-Cada hallazgo debe decir qué se encontró, dónde vive, por qué importa, qué riesgo tiene, qué puede hacer YCF con seguridad y qué necesita aún una decisión humana. Sin métricas imaginarias. Sin borrados ciegos. Sin fingir que `grep` es análisis de arquitectura.
+Cada hallazgo debe decir qué se encontró, dónde vive, por qué importa, qué riesgo tiene, qué puede hacer YCF con seguridad y qué necesita aún una decisión humana. Las cinco dimensiones de calidad son deterministas, no opiniones de la IA. Sin borrados ciegos. Sin fingir que `grep` es análisis de arquitectura.
 
 ## Ingeniería seria debajo de la broma
 
