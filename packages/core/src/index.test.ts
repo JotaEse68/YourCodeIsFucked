@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { aiResidueFindings, audit, cleanupDebugStatements, cleanupDevArtifacts, detectStacks, duplicateGroups, loadConfig, understand, verificationPlan, writeAuditReport, writeUnfuckReport } from './index.js';
+import { aiResidueFindings, audit, cleanupDebugStatements, cleanupDevArtifacts, detectStacks, duplicateGroups, loadConfig, refactorPlan, understand, verificationPlan, writeAuditReport, writeUnfuckReport } from './index.js';
 
 const temporaryDirectories: string[] = [];
 afterEach(() => temporaryDirectories.splice(0).forEach((directory) => rmSync(directory, { recursive: true, force: true })));
@@ -200,5 +200,18 @@ describe('stack detection', () => {
       after: auditReport
     });
     expect(readFileSync(paths.markdownPath, 'utf8')).toContain('NO-CHANGES');
+  });
+
+  it('creates a refactor plan with impact information without changing source code', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    writeFileSync(join(directory, 'ycf.config.yml'), 'refactor:\n  max_function_lines: 2\n');
+    const path = join(directory, 'service.ts');
+    const source = ['export function processOrder() {', '  const order = loadOrder();', '  validate(order);', '  return save(order);', '}'].join('\n');
+    writeFileSync(path, source);
+    const result = refactorPlan(directory);
+    expect(result.plan.recommendations).toMatchObject([{ title: 'Split an oversized function', file: 'service.ts', requiresHumanReview: true }]);
+    expect(readFileSync(path, 'utf8')).toBe(source);
+    expect(existsSync(result.markdownPath)).toBe(true);
   });
 });

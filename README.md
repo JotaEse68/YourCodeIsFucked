@@ -63,6 +63,7 @@ cd your-project
 ycf init
 ycf audit
 ycf unfuck --dry-run
+ycf refactor --dry-run
 ```
 
 Use `ycf map` to see the detected entry points and local module connections.

@@ -41,3 +41,11 @@ export interface UnfuckReport {
   target: string; startedAt: string; completedAt: string; status: 'no-changes' | 'verified' | 'rolled-back'; before: AuditReport; after: AuditReport;
   checkpoint?: GitCheckpoint; cleanup?: CleanupReport; verification?: VerificationReport;
 }
+export interface RefactorRecommendation {
+  id: string; title: string; risk: FindingRisk; file: string; lines: number[]; why: string; suggestedAction: string;
+  affectedModules: string[]; requiresHumanReview: boolean;
+}
+export interface RefactorPlan {
+  target: string; generatedAt: string; recommendations: RefactorRecommendation[];
+  summary: { safeRefactors: number; architecturalReviews: number; total: number };
+}

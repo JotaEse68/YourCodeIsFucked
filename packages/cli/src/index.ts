@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { Command } from 'commander';
-import { aiResidueFindings, audit, cleanupDevArtifacts, createCheckpoint, latestCheckpoint, loadConfig, rollbackToCheckpoint, understand, verificationPlan, verify, writeAuditReport, writeUnfuckReport } from '@ycf/core';
+import { aiResidueFindings, audit, cleanupDevArtifacts, createCheckpoint, latestCheckpoint, loadConfig, refactorPlan, rollbackToCheckpoint, understand, verificationPlan, verify, writeAuditReport, writeUnfuckReport } from '@ycf/core';
 
 // pnpm forwards a standalone `--` to package scripts on some platforms.
 if (process.argv[2] === '--') process.argv.splice(2, 1);
@@ -243,6 +243,17 @@ program.command('unfuck [target]').description('Run YCF’s current safe pipelin
     rollbackToCheckpoint(target, checkpoint);
     throw error;
   }
+});
+
+program.command('refactor [target]').description('Generate a supervised refactor plan without changing source code.').option('--dry-run', 'Explicitly confirm planning-only mode.').option('--json', 'Emit the full plan as JSON.').action((target = '.', options) => {
+  const result = refactorPlan(target);
+  if (options.json) { console.log(JSON.stringify(result.plan, null, 2)); return; }
+  console.log('YCF — supervised refactor plan');
+  console.log(`Recommendations: ${result.plan.summary.total}`);
+  console.log(`Safe refactors to review: ${result.plan.summary.safeRefactors}`);
+  console.log(`Architectural reviews: ${result.plan.summary.architecturalReviews}`);
+  for (const recommendation of result.plan.recommendations) console.log(`[${recommendation.risk}] ${recommendation.file}:${recommendation.lines.join(',')} — ${recommendation.title}`);
+  console.log(`No source code changed. Plan: ${result.markdownPath}`);
 });
 
 program.command('verify [target]').description('Run available lint, typecheck, test and build scripts.').option('--dry-run', 'Show the commands without running them.').action((target = '.', options) => {

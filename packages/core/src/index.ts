@@ -3,10 +3,11 @@ import { basename, extname, join, relative, resolve } from 'node:path';
 import ts from 'typescript';
 import { ignoredDirectories, loadConfig } from './config.js';
 import { findGitRoot } from './git.js';
-import { writeAuditReport as persistAuditReport, writeUnfuckReport } from './reporters.js';
+import { writeAuditReport as persistAuditReport, writeRefactorPlan } from './reporters.js';
+import { buildRefactorPlan } from './planner.js';
 import { wordpressFindings } from './wordpress.js';
-import type { AuditReport, CleanupReport, Finding, Stack, UnderstandReport, UnfuckReport, YcfConfig } from './types.js';
-export type { AuditReport, CleanupReport, Finding, FindingRisk, GitCheckpoint, GitState, Stack, UnderstandReport, UnfuckReport, VerificationCheck, VerificationReport, YcfConfig } from './types.js';
+import type { AuditReport, CleanupReport, Finding, RefactorPlan, Stack, UnderstandReport, YcfConfig } from './types.js';
+export type { AuditReport, CleanupReport, Finding, FindingRisk, GitCheckpoint, GitState, RefactorPlan, RefactorRecommendation, Stack, UnderstandReport, UnfuckReport, VerificationCheck, VerificationReport, YcfConfig } from './types.js';
 export { defaultConfig, loadConfig } from './config.js';
 export { createCheckpoint, findGitRoot, latestCheckpoint, rollbackToCheckpoint } from './git.js';
 export { verificationPlan, verify } from './verify.js';
@@ -542,4 +543,12 @@ export function understand(target: string): UnderstandReport {
 
 export function writeAuditReport(target: string, report = audit(target)): { jsonPath: string; markdownPath: string } {
   return persistAuditReport(target, report);
+}
+
+/** Produce a reviewable refactor plan. This intentionally never modifies source files. */
+export function refactorPlan(target: string): { plan: RefactorPlan; jsonPath: string; markdownPath: string } {
+  const auditReport = audit(target);
+  const understanding = understand(target);
+  const plan = buildRefactorPlan(auditReport, understanding);
+  return { plan, ...writeRefactorPlan(target, plan) };
 }
