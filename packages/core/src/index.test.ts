@@ -293,6 +293,32 @@ describe('stack detection', () => {
     expect(findings).toEqual([]);
   });
 
+  it('requires a strong capability before endpoint callbacks can grant privileges', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    const path = join(directory, 'privileges.php');
+    writeFileSync(path, [
+      '<?php',
+      "add_action('wp_ajax_promote_member', 'promote_member');",
+      "register_rest_route('ycf/v1', '/promote', array('callback' => 'promote_route', 'permission_callback' => 'can_edit_posts'));",
+      "function promote_member() { check_ajax_referer('promote'); current_user_can('edit_posts'); $user->set_role('administrator'); }",
+      "function promote_route() { wp_update_user(array('ID' => 5, 'role' => 'administrator')); }",
+      "function can_edit_posts() { return current_user_can('edit_posts'); }"
+    ].join('\n'));
+    let findings = audit(directory).findings.filter((finding) => finding.ruleId === 'wordpress-privilege-escalation-review');
+    expect(findings).toHaveLength(2);
+    writeFileSync(path, [
+      '<?php',
+      "add_action('wp_ajax_promote_member', 'promote_member');",
+      "register_rest_route('ycf/v1', '/promote', array('callback' => 'promote_route', 'permission_callback' => 'can_promote_users'));",
+      "function promote_member() { check_ajax_referer('promote'); current_user_can('promote_users'); $user->set_role('administrator'); }",
+      "function promote_route() { wp_update_user(array('ID' => 5, 'role' => 'administrator')); }",
+      "function can_promote_users() { return current_user_can('promote_users'); }"
+    ].join('\n'));
+    findings = audit(directory).findings.filter((finding) => finding.ruleId === 'wordpress-privilege-escalation-review');
+    expect(findings).toEqual([]);
+  });
+
   it('honours the configured file-size limit', () => {
     const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
     temporaryDirectories.push(directory);

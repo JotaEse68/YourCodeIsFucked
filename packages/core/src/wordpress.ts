@@ -285,3 +285,41 @@ export function wordpressDestructiveOperationFindings(sources: WordPressSource[]
   }
   return findings;
 }
+
+const strongPrivilegeCapability = /\bcurrent_user_can\s*\(\s*['"](?:manage_options|promote_users|create_users|edit_users|manage_network_users)['"]/;
+const privilegeOperation = /\b(set_role|add_cap|wp_(?:insert|update)_user)\s*\(/g;
+
+function changesPrivilege(operation: RegExpExecArray, body: string): boolean {
+  if (operation[1] === 'set_role' || operation[1] === 'add_cap') return true;
+  return /['"]role['"]\s*=>/.test(body.slice(operation.index ?? 0, (operation.index ?? 0) + 500));
+}
+
+/** Requires a strong user-management capability before endpoint callbacks can grant roles or capabilities. */
+export function wordpressPrivilegeEscalationFindings(sources: WordPressSource[]): Finding[] {
+  const definitions = callbackDefinitions(sources);
+  const instances = instanceClasses(sources);
+  const findings: Finding[] = [];
+  const ajaxByCallback = new Map<string, string[]>();
+  for (const registration of ajaxRegistrations(sources, instances)) ajaxByCallback.set(registration.callback, [...(ajaxByCallback.get(registration.callback) ?? []), registration.action]);
+  const restStrongProtection = new Map<string, boolean>();
+  for (const source of sources) for (const route of source.content.matchAll(/\bregister_rest_route\s*\([\s\S]{0,2000}?\);/g)) {
+    const callback = referencedCallback(route[0], 'callback', instances);
+    const permission = referencedCallback(route[0], 'permission_callback', instances);
+    if (callback) restStrongProtection.set(callback, Boolean(permission && strongPrivilegeCapability.test(definitions.get(permission)?.body ?? '')) || /['"]permission_callback['"]\s*=>\s*function[\s\S]{0,1000}?\bcurrent_user_can\s*\(\s*['"](?:manage_options|promote_users|create_users|edit_users|manage_network_users)['"]/.test(route[0]));
+  }
+  for (const [callbackName, callback] of definitions) {
+    const ajaxActions = ajaxByCallback.get(callbackName);
+    const restStrong = restStrongProtection.get(callbackName);
+    if (!ajaxActions && restStrong === undefined) continue;
+    for (const operation of callback.body.matchAll(privilegeOperation)) {
+      if (!changesPrivilege(operation, callback.body)) continue;
+      const ajaxSafe = Boolean(ajaxActions && /\b(?:check_ajax_referer|wp_verify_nonce)\s*\(/.test(callback.body) && strongPrivilegeCapability.test(callback.body));
+      const restSafe = restStrong === true;
+      if (ajaxSafe || restSafe) continue;
+      const line = callback.line + lineAt(callback.body, operation.index ?? 0) - 1;
+      const entry = ajaxActions ? `AJAX action(s) ${ajaxActions.join(', ')}` : 'a REST route';
+      findings.push({ id: `wordpress-privilege-escalation-review:${callback.file}:${line}:${operation[1]}`, ruleId: 'wordpress-privilege-escalation-review', severity: 'medium', risk: 'architectural', file: callback.file, lines: [line], evidence: `${operation[1]} in callback ${callbackName} can change user roles or capabilities through ${entry}, but YCF cannot prove nonce protection plus a strong user-management capability. Require promote_users, manage_options, or an equivalent explicit policy before release.`, scoreImpact: 5 });
+    }
+  }
+  return findings;
+}

@@ -5,7 +5,7 @@ import { ignoredDirectories, loadConfig } from './config.js';
 import { findGitRoot } from './git.js';
 import { writeAuditReport as persistAuditReport, writeRefactorPlan } from './reporters.js';
 import { buildRefactorPlan } from './planner.js';
-import { wordpressAjaxFindings, wordpressDataFlowFindings, wordpressDestructiveOperationFindings, wordpressFindings, wordpressRestFindings, wordpressRestPersistenceFindings } from './wordpress.js';
+import { wordpressAjaxFindings, wordpressDataFlowFindings, wordpressDestructiveOperationFindings, wordpressFindings, wordpressPrivilegeEscalationFindings, wordpressRestFindings, wordpressRestPersistenceFindings } from './wordpress.js';
 import { createReleaseReadiness } from './release.js';
 import type { AuditReport, CleanupReport, Finding, RefactorPlan, Stack, UnderstandReport, YcfConfig } from './types.js';
 export type { AuditReport, CleanupReport, Finding, FindingRisk, GitCheckpoint, GitState, RefactorPlan, RefactorRecommendation, ReleaseCheck, ReleaseReport, Stack, UnderstandReport, UnfuckReport, VerificationCheck, VerificationReport, YcfConfig } from './types.js';
@@ -360,6 +360,7 @@ export function audit(target: string): AuditReport {
     ...wordpressRestFindings(wordpressSources),
     ...wordpressRestPersistenceFindings(wordpressSources),
     ...wordpressDestructiveOperationFindings(wordpressSources),
+    ...wordpressPrivilegeEscalationFindings(wordpressSources),
     ...dependencyFindings(resolvedTarget, files),
     ...duplicateFindings(resolvedTarget, files)
   ];
