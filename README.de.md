@@ -7,7 +7,7 @@ YCF ist ein Open-Source-Kommandozeilentool, das Codeprojekte sicher versteht, pr
 ## Schnellstart
 
 ```bash
-npm install -g your-code-is-fucked
+npm install -g @jotaese68/ycf-cli
 cd mein-projekt
 ycf init
 ycf audit

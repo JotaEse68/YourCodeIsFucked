@@ -7,7 +7,7 @@ YCF 是一个开源命令行工具，用于安全地理解、审计和改进代�
 ## 从这里开始
 
 ```bash
-npm install -g your-code-is-fucked
+npm install -g @jotaese68/ycf-cli
 cd my-project
 ycf init
 ycf audit

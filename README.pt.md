@@ -7,7 +7,7 @@ YCF é uma ferramenta open source de linha de comando para entender, auditar e m
 ## Comece aqui
 
 ```bash
-npm install -g your-code-is-fucked
+npm install -g @jotaese68/ycf-cli
 cd meu-projeto
 ycf init
 ycf audit

@@ -58,7 +58,7 @@ YCF 会绘制项目结构、发现问题、解释风险，并且只应用已证�
 ## Quick start
 
 ```bash
-npm install -g your-code-is-fucked
+npm install -g @jotaese68/ycf-cli
 cd your-project
 ycf init
 ycf audit
@@ -99,7 +99,7 @@ Copyright 2026 JotaEse68. YCF is licensed under the [Apache License 2.0](LICENSE
 
 ## Planned packages
 
-Version `0.1.1` publishes `your-code-is-fucked` for the `ycf` command and `@jotaese68/core` for the reusable engine. Run `corepack pnpm pack:check` to inspect their package contents without publishing.
+Version `0.1.2` publishes `@jotaese68/ycf-cli` for the `ycf` command and `@jotaese68/core` for the reusable engine. Run `corepack pnpm pack:check` to inspect their package contents without publishing.
 
 ## Current status
 

@@ -7,7 +7,7 @@ YCF أداة مفتوحة المصدر تعمل من سطر الأوامر لف�
 ## ابدأ من هنا
 
 ```bash
-npm install -g your-code-is-fucked
+npm install -g @jotaese68/ycf-cli
 cd my-project
 ycf init
 ycf audit
