@@ -9,12 +9,14 @@ import { buildRefactorPlan } from './planner.js';
 import { wordpressAjaxFindings, wordpressDataFlowFindings, wordpressDestructiveOperationFindings, wordpressFindings, wordpressPrivilegeEscalationFindings, wordpressRestFindings, wordpressRestPersistenceFindings, wordpressSensitiveExposureFindings } from './wordpress.js';
 import { createReleaseReadiness } from './release.js';
 import type { AuditReport, CleanupReport, Finding, RefactorPlan, Stack, UnderstandReport, YcfConfig } from './types.js';
-export type { AuditReport, CleanupReport, Finding, FindingRisk, GitCheckpoint, GitState, RefactorPlan, RefactorRecommendation, ReleaseCheck, ReleaseReport, Stack, UnderstandReport, UnfuckReport, VerificationCheck, VerificationReport, YcfConfig } from './types.js';
+export type { AuditReport, CleanupReport, DependencyAuditReport, DependencyVulnerability, Finding, FindingRisk, GitCheckpoint, GitState, RefactorPlan, RefactorRecommendation, ReleaseCheck, ReleaseReport, Stack, UnderstandReport, UnfuckReport, VerificationCheck, VerificationReport, YcfConfig } from './types.js';
 export { defaultConfig, loadConfig } from './config.js';
 export { createCheckpoint, findGitRoot, latestCheckpoint, rollbackToCheckpoint } from './git.js';
 export { verificationPlan, verify } from './verify.js';
 export { writeUnfuckReport } from './reporters.js';
 export { writeReleaseReport } from './reporters.js';
+export { dependencyAudit, dependencyAuditPlan, parseDependencyAudit } from './dependencies.js';
+export { writeDependencyAuditReport } from './reporters.js';
 export { releaseCheckLabel, releaseCheckedLabel, releaseHeading, releaseReportLabel } from './i18n.js';
 
 const sourceExtensions = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.php']);

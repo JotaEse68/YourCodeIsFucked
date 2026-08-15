@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { aiResidueFindings, audit, cleanupDebugStatements, cleanupDevArtifacts, detectStacks, duplicateGroups, loadConfig, refactorPlan, releaseCheckLabel, releaseReadiness, understand, verificationPlan, writeAuditReport, writeReleaseReport, writeUnfuckReport } from './index.js';
+import { aiResidueFindings, audit, cleanupDebugStatements, cleanupDevArtifacts, dependencyAuditPlan, detectStacks, duplicateGroups, loadConfig, parseDependencyAudit, refactorPlan, releaseCheckLabel, releaseReadiness, understand, verificationPlan, writeAuditReport, writeReleaseReport, writeUnfuckReport } from './index.js';
 
 const temporaryDirectories: string[] = [];
 afterEach(() => temporaryDirectories.splice(0).forEach((directory) => rmSync(directory, { recursive: true, force: true })));
@@ -375,6 +375,14 @@ describe('stack detection', () => {
     const rules = audit(directory).findings.map((finding) => finding.ruleId);
     expect(rules).toContain('sensitive-repository-file-tracked');
     expect(rules).toContain('sensitive-repository-file-protected');
+  });
+
+  it('plans and parses a read-only production dependency audit', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    writeFileSync(join(directory, 'package.json'), '{"packageManager":"pnpm@11.0.0"}');
+    expect(dependencyAuditPlan(directory)).toEqual({ manager: 'pnpm', command: ['corepack', 'pnpm', 'audit', '--json', '--prod'] });
+    expect(parseDependencyAudit('{"vulnerabilities":{"demo":{"severity":"high","fixAvailable":true}}}')).toEqual([{ name: 'demo', severity: 'high', fixAvailable: true }]);
   });
 
   it('honours the configured file-size limit', () => {

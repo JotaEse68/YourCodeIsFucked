@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { Command } from 'commander';
-import { aiResidueFindings, audit, cleanupDevArtifacts, createCheckpoint, latestCheckpoint, loadConfig, refactorPlan, releaseCheckLabel, releaseHeading, releaseReadiness, releaseReportLabel, rollbackToCheckpoint, understand, verificationPlan, verify, writeAuditReport, writeReleaseReport, writeUnfuckReport } from '@ycf/core';
+import { aiResidueFindings, audit, cleanupDevArtifacts, createCheckpoint, dependencyAudit, dependencyAuditPlan, latestCheckpoint, loadConfig, refactorPlan, releaseCheckLabel, releaseHeading, releaseReadiness, releaseReportLabel, rollbackToCheckpoint, understand, verificationPlan, verify, writeAuditReport, writeDependencyAuditReport, writeReleaseReport, writeUnfuckReport } from '@ycf/core';
 
 // pnpm forwards a standalone `--` to package scripts on some platforms.
 if (process.argv[2] === '--') process.argv.splice(2, 1);
@@ -201,7 +201,7 @@ program.command('init [target]').description('Create YCF configuration without o
 program.command('audit [target]').description('Audit a repository without modifying it.').option('--json', 'Emit the complete JSON report.').option('--language <language>', 'Response language: en, es, pt, fr, de, it, ar, or zh.').option('--audience <audience>', 'Explanation level: guided, technical, or professional.').action((target = '.', options) => {
   const report = audit(target);
   const config = loadConfig(target);
-  const language = validLanguage(options.language) ? options.language : config.language;
+  const language: Language = validLanguage(options.language) ? options.language : config.language;
   const audience = validAudience(options.audience) ? options.audience : config.audience;
   if (options.json) {
     console.log(JSON.stringify(report, null, 2));
@@ -355,6 +355,37 @@ program.command('release [target]').description('Check whether a repository is r
   for (const check of report.checks) console.log(`${check.status === 'passed' ? '✓' : check.status === 'failed' ? '✗' : '!'} ${releaseCheckLabel(language, check)}`);
   console.log(`${releaseReportLabel(language)}: ${paths.markdownPath}`);
   if (!report.ready) process.exitCode = 1;
+});
+
+program.command('dependencies [target]').description('Read package-manager vulnerability advisories without changing dependencies.').option('--dry-run', 'Show the external read-only command without running it.').option('--json', 'Emit the complete dependency report as JSON.').option('--language <language>', 'Response language: en, es, pt, fr, de, it, ar, or zh.').action((target = '.', options) => {
+  if (options.dryRun) {
+    const plan = dependencyAuditPlan(target);
+    console.log(plan.command.length ? plan.command.join(' ') : 'No package.json was found.');
+    return;
+  }
+  const report = dependencyAudit(target);
+  const config = loadConfig(target);
+  const language: Language = validLanguage(options.language) ? options.language : config.language;
+  const paths = writeDependencyAuditReport(target, report);
+  if (options.json) { console.log(JSON.stringify(report, null, 2)); return; }
+  const labels: Record<Language, { unavailable: string; clean: string; found: string; report: string }> = {
+    en: { unavailable: 'Dependency advisories could not be retrieved', clean: 'No production dependency vulnerabilities reported', found: 'Production dependency vulnerabilities to review', report: 'Report' },
+    es: { unavailable: 'No se pudieron consultar los avisos de dependencias', clean: 'No se reportaron vulnerabilidades en dependencias de producción', found: 'Vulnerabilidades de dependencias de producción para revisar', report: 'Informe' },
+    pt: { unavailable: 'Não foi possível consultar avisos de dependências', clean: 'Não há vulnerabilidades reportadas nas dependências de produção', found: 'Vulnerabilidades de dependências de produção para revisar', report: 'Relatório' },
+    fr: { unavailable: 'Les avis de dépendances n’ont pas pu être consultés', clean: 'Aucune vulnérabilité de dépendance de production signalée', found: 'Vulnérabilités de dépendances de production à examiner', report: 'Rapport' },
+    de: { unavailable: 'Abhängigkeitshinweise konnten nicht abgerufen werden', clean: 'Keine gemeldeten Sicherheitslücken in Produktionsabhängigkeiten', found: 'Sicherheitslücken in Produktionsabhängigkeiten prüfen', report: 'Bericht' },
+    it: { unavailable: 'Non è stato possibile consultare gli avvisi delle dipendenze', clean: 'Nessuna vulnerabilità segnalata nelle dipendenze di produzione', found: 'Vulnerabilità delle dipendenze di produzione da verificare', report: 'Rapporto' },
+    ar: { unavailable: 'تعذر الحصول على تنبيهات التبعيات', clean: 'لا توجد ثغرات مُبلغ عنها في تبعيات الإنتاج', found: 'ثغرات في تبعيات الإنتاج تحتاج إلى مراجعة', report: 'التقرير' },
+    zh: { unavailable: '无法获取依赖项安全公告', clean: '未报告生产依赖项漏洞', found: '需要检查的生产依赖项漏洞', report: '报告' }
+  };
+  const copy = labels[language];
+  if (!report.available) { console.log(`YCF — ${copy.unavailable}: ${report.error}`); process.exitCode = 1; }
+  else if (!report.vulnerabilities.length) console.log(`YCF — ${copy.clean}`);
+  else {
+    console.log(`YCF — ${copy.found}: ${report.vulnerabilities.length}`);
+    for (const item of report.vulnerabilities) console.log(`[${item.severity}] ${item.name}${item.fixAvailable ? ' — update available' : ''}`);
+  }
+  console.log(`${copy.report}: ${paths.markdownPath}`);
 });
 
 program.command('checkpoint [target]').description('Create a YCF Git checkpoint from a clean worktree.').action((target = '.') => {

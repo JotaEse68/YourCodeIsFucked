@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { releaseCheckLabel, releaseCheckedLabel, releaseHeading } from './i18n.js';
-import type { AuditReport, Language, RefactorPlan, ReleaseReport, UnfuckReport } from './types.js';
+import type { AuditReport, DependencyAuditReport, Language, RefactorPlan, ReleaseReport, UnfuckReport } from './types.js';
 
 export function writeAuditReport(target: string, report: AuditReport): { jsonPath: string; markdownPath: string } {
   const output = join(resolve(target), '.ycf');
@@ -44,5 +44,16 @@ export function writeReleaseReport(target: string, report: ReleaseReport, langua
   writeFileSync(jsonPath, JSON.stringify(report, null, 2), 'utf8');
   const checks = report.checks.map((check) => `- ${releaseCheckLabel(language, check)}`).join('\n');
   writeFileSync(markdownPath, `# YCF — ${releaseHeading(language, report.ready)}\n\n${releaseCheckedLabel(language)}: ${report.checkedAt}\n\n${checks}\n`, 'utf8');
+  return { jsonPath, markdownPath };
+}
+
+export function writeDependencyAuditReport(target: string, report: DependencyAuditReport): { jsonPath: string; markdownPath: string } {
+  const output = join(resolve(target), '.ycf');
+  mkdirSync(output, { recursive: true });
+  const jsonPath = join(output, 'dependencies.json');
+  const markdownPath = join(output, 'dependencies.md');
+  writeFileSync(jsonPath, JSON.stringify(report, null, 2), 'utf8');
+  const vulnerabilities = report.vulnerabilities.length ? report.vulnerabilities.map((item) => `- **${item.severity.toUpperCase()}** ${item.name}${item.fixAvailable ? ' — update available' : ''}`).join('\n') : '- No reported production dependency vulnerabilities.';
+  writeFileSync(markdownPath, `# YCF dependency audit\n\n- Manager: ${report.manager}\n- Available: ${report.available ? 'yes' : 'no'}\n- Command: \`${report.command.join(' ')}\`\n- Error: ${report.error ?? 'none'}\n\n## Vulnerabilities\n\n${vulnerabilities}\n`, 'utf8');
   return { jsonPath, markdownPath };
 }
