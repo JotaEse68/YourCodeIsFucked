@@ -22,8 +22,6 @@ export function wordpressFindings(displayPath: string, content: string): Finding
     const detected = entries.filter((entry) => linesMatching(content, entry.expression).length > 0).map((entry) => entry.label);
     findings.push({ id: `wordpress-dynamic-entrypoint:${displayPath}`, ruleId: 'wordpress-dynamic-entrypoint', severity: 'low', risk: 'architectural', file: displayPath, lines: [...new Set(dynamicLines)].sort((left, right) => left - right), evidence: `Dynamic WordPress entry point(s) detected: ${detected.join(', ')}. These callbacks must not be treated as dead code from static references alone.`, scoreImpact: 0 });
   }
-  const routesWithoutPermissions = [...content.matchAll(/\bregister_rest_route\s*\([\s\S]{0,2000}?\);/g)].flatMap((route) => route[0].includes('permission_callback') ? [] : [lineAt(content, route.index ?? 0)]);
-  if (routesWithoutPermissions.length > 0) findings.push({ id: `wordpress-rest-route-permission:${displayPath}`, ruleId: 'wordpress-rest-route-permission', severity: 'medium', risk: 'architectural', file: displayPath, lines: routesWithoutPermissions, evidence: `${routesWithoutPermissions.length} WordPress REST route(s) appear to lack a permission_callback. Confirm access control before release.`, scoreImpact: Math.min(routesWithoutPermissions.length * 5, 15) });
   const rawInputLines = linesMatching(content, /\$_(?:GET|POST|REQUEST|COOKIE)\s*\[/).filter((line) => !/\b(?:sanitize_|absint|intval|floatval|wp_kses|esc_)/.test(content.split(/\r?\n/)[line - 1]));
   if (rawInputLines.length > 0) findings.push({ id: `wordpress-unsanitized-input:${displayPath}`, ruleId: 'wordpress-unsanitized-input', severity: 'medium', risk: 'architectural', file: displayPath, lines: rawInputLines, evidence: `${rawInputLines.length} request input use(s) appear without same-line sanitization. Trace validation and sanitization before using or storing the value.`, scoreImpact: Math.min(rawInputLines.length * 3, 12) });
   const rawOutputLines = linesMatching(content, /\becho\s+\$\w+/).filter((line) => !/\besc_(?:html|attr|url|js|textarea)|wp_kses/.test(content.split(/\r?\n/)[line - 1]));
@@ -49,15 +47,66 @@ function callbackDefinitions(sources: WordPressSource[]): Map<string, CallbackDe
       }
       if (depth === 0 && !definitions.has(match[1])) definitions.set(match[1], { file: source.path, line: lineAt(source.content, match.index ?? 0), body: source.content.slice(openBrace, end + 1) });
     }
+    const classes = /\bclass\s+([A-Za-z_]\w*)[^{}]*\{/g;
+    for (const classMatch of source.content.matchAll(classes)) {
+      const classOpenBrace = (classMatch.index ?? 0) + classMatch[0].lastIndexOf('{');
+      let classDepth = 0;
+      let classEnd = classOpenBrace;
+      for (; classEnd < source.content.length; classEnd += 1) {
+        if (source.content[classEnd] === '{') classDepth += 1;
+        if (source.content[classEnd] === '}') classDepth -= 1;
+        if (classDepth === 0) break;
+      }
+      if (classDepth !== 0) continue;
+      const classBody = source.content.slice(classOpenBrace + 1, classEnd);
+      const methods = /\bfunction\s+([A-Za-z_]\w*)\s*\([^)]*\)\s*\{/g;
+      for (const methodMatch of classBody.matchAll(methods)) {
+        const methodOpenBrace = classOpenBrace + 1 + (methodMatch.index ?? 0) + methodMatch[0].lastIndexOf('{');
+        let methodDepth = 0;
+        let methodEnd = methodOpenBrace;
+        for (; methodEnd < source.content.length; methodEnd += 1) {
+          if (source.content[methodEnd] === '{') methodDepth += 1;
+          if (source.content[methodEnd] === '}') methodDepth -= 1;
+          if (methodDepth === 0) break;
+        }
+        const key = `${classMatch[1]}::${methodMatch[1]}`;
+        if (methodDepth === 0 && !definitions.has(key)) definitions.set(key, { file: source.path, line: lineAt(source.content, classOpenBrace + 1 + (methodMatch.index ?? 0)), body: source.content.slice(methodOpenBrace, methodEnd + 1) });
+      }
+    }
   }
   return definitions;
 }
 
 function ajaxRegistrations(sources: WordPressSource[]): AjaxRegistration[] {
   const registrations: AjaxRegistration[] = [];
-  const expression = /\badd_action\s*\(\s*(['"])(wp_ajax(_nopriv)?_[A-Za-z0-9_-]+)\1\s*,\s*(['"])([A-Za-z_]\w*)\4/g;
+  const expression = /\badd_action\s*\(\s*(['"])(wp_ajax(_nopriv)?_[A-Za-z0-9_-]+)\1\s*,\s*(['"])([A-Za-z_]\w*(?:::[A-Za-z_]\w*)?)\4/g;
   for (const source of sources) for (const match of source.content.matchAll(expression)) registrations.push({ action: match[2], callback: match[5], file: source.path, line: lineAt(source.content, match.index ?? 0), public: Boolean(match[3]) });
+  const arrayExpression = /\badd_action\s*\(\s*(['"])(wp_ajax(_nopriv)?_[A-Za-z0-9_-]+)\1\s*,\s*(?:array\s*\(|\[)\s*(['"])([A-Za-z_]\w*)\4\s*,\s*(['"])([A-Za-z_]\w*)\6/g;
+  for (const source of sources) for (const match of source.content.matchAll(arrayExpression)) registrations.push({ action: match[2], callback: `${match[5]}::${match[7]}`, file: source.path, line: lineAt(source.content, match.index ?? 0), public: Boolean(match[3]) });
   return registrations;
+}
+
+function referencedCallback(route: string): string | undefined {
+  const direct = /['"]callback['"]\s*=>\s*['"]([A-Za-z_]\w*(?:::[A-Za-z_]\w*)?)['"]/.exec(route);
+  if (direct) return direct[1];
+  const array = /['"]callback['"]\s*=>\s*(?:array\s*\(|\[)\s*['"]([A-Za-z_]\w*)['"]\s*,\s*['"]([A-Za-z_]\w*)['"]/.exec(route);
+  return array ? `${array[1]}::${array[2]}` : undefined;
+}
+
+/** Checks REST access declarations and resolves explicit named route callbacks across inspected PHP files. */
+export function wordpressRestFindings(sources: WordPressSource[]): Finding[] {
+  const definitions = callbackDefinitions(sources);
+  const findings: Finding[] = [];
+  for (const source of sources) for (const route of source.content.matchAll(/\bregister_rest_route\s*\([\s\S]{0,2000}?\);/g)) {
+    const line = lineAt(source.content, route.index ?? 0);
+    if (!route[0].includes('permission_callback')) {
+      findings.push({ id: `wordpress-rest-route-permission:${source.path}:${line}`, ruleId: 'wordpress-rest-route-permission', severity: 'medium', risk: 'architectural', file: source.path, lines: [line], evidence: 'A WordPress REST route appears to lack a permission_callback. Confirm access control before release.', scoreImpact: 5 });
+      continue;
+    }
+    const callback = referencedCallback(route[0]);
+    if (callback && !definitions.has(callback)) findings.push({ id: `wordpress-rest-route-callback-review:${source.path}:${line}`, ruleId: 'wordpress-rest-route-callback-review', severity: 'medium', risk: 'architectural', file: source.path, lines: [line], evidence: `REST callback ${callback} could not be resolved in inspected PHP files. Confirm that this route will be callable after deployment.`, scoreImpact: 3 });
+  }
+  return findings;
 }
 
 /** Resolves simple named AJAX callbacks across PHP files before checking nonce and capability evidence. */

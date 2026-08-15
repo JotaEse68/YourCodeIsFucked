@@ -149,6 +149,27 @@ describe('stack detection', () => {
     expect(findings).toMatchObject([{ file: 'callbacks.php', lines: [2] }, { file: 'callbacks.php', lines: [2] }]);
   });
 
+  it('resolves class callbacks for WordPress AJAX and REST routes across files', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    writeFileSync(join(directory, 'routes.php'), [
+      '<?php',
+      "add_action('wp_ajax_save_profile', array('Profile_Controller', 'save'));",
+      "register_rest_route('ycf/v1', '/profile', array('callback' => array('Profile_Controller', 'show'), 'permission_callback' => 'can_read_profile'));"
+    ].join('\n'));
+    writeFileSync(join(directory, 'controller.php'), [
+      '<?php',
+      'class Profile_Controller {',
+      '  function save() { check_ajax_referer(\'save\'); current_user_can(\'edit_posts\'); }',
+      '  function show() { return array(); }',
+      '}'
+    ].join('\n'));
+    const rules = audit(directory).findings.map((finding) => finding.ruleId);
+    expect(rules).not.toContain('wordpress-ajax-nonce-review');
+    expect(rules).not.toContain('wordpress-ajax-capability-review');
+    expect(rules).not.toContain('wordpress-rest-route-callback-review');
+  });
+
   it('honours the configured file-size limit', () => {
     const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
     temporaryDirectories.push(directory);
