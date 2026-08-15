@@ -91,6 +91,8 @@ corepack pnpm test
 corepack pnpm build
 ```
 
+For contribution and security reporting guidance, see [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md). A public release still needs a license choice and an intentional versioning decision; the packages are currently private and cannot be published accidentally.
+
 ## Current status
 
 YCF currently supports deterministic JS/TS/React and PHP/WordPress diagnostics, safe cleanup of parser-confirmed debug artifacts and selected unused named imports, Git checkpoints, verification, release-readiness reports and guided output. Broader refactors remain supervised plans.
