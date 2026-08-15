@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -361,6 +362,19 @@ describe('stack detection', () => {
     expect(findings).toHaveLength(3);
     expect(findings.map((finding) => finding.evidence).join('\n')).not.toContain('TOP_SECRET_VALUE');
     expect(findings.map((finding) => finding.evidence).join('\n')).not.toContain('PRIVATE_KEY_VALUE');
+  });
+
+  it('distinguishes sensitive files tracked by Git from files protected by .gitignore', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    execFileSync('git', ['init', '--quiet', directory]);
+    writeFileSync(join(directory, '.env'), 'TRACKED_SECRET');
+    writeFileSync(join(directory, '.env.local'), 'LOCAL_SECRET');
+    writeFileSync(join(directory, '.gitignore'), '.env.local\n');
+    execFileSync('git', ['-C', directory, 'add', '--force', '.env']);
+    const rules = audit(directory).findings.map((finding) => finding.ruleId);
+    expect(rules).toContain('sensitive-repository-file-tracked');
+    expect(rules).toContain('sensitive-repository-file-protected');
   });
 
   it('honours the configured file-size limit', () => {

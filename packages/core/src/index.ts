@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { basename, extname, join, relative, resolve } from 'node:path';
 import ts from 'typescript';
@@ -56,6 +57,7 @@ function sourceFilesIn(target: string, config = loadConfig(target)): string[] {
 
 function sensitiveRepositoryFindings(target: string, config: YcfConfig): Finding[] {
   const findings: Finding[] = [];
+  const git = findGitRoot(target);
   for (const file of walk(target, new Set([...ignoredDirectories, ...config.ignore]))) {
     const path = relative(target, file) || file;
     const name = basename(file).toLowerCase();
@@ -66,7 +68,12 @@ function sensitiveRepositoryFindings(target: string, config: YcfConfig): Finding
       || /^wp-config\.php$/i.test(name);
     const backupFile = /\.(?:sql|sqlite|db|bak|backup)$/i.test(name) || /(?:^|[._-])backup(?:[._-]|$)/i.test(name);
     if (!secretFile && !backupFile) continue;
-    findings.push({ id: `sensitive-repository-file:${path}`, ruleId: 'sensitive-repository-file', severity: secretFile ? 'medium' : 'low', risk: 'architectural', file: path, lines: [], evidence: `Sensitive-looking file detected by name: ${path}. YCF did not read its contents. Keep it out of commits and public deployments; use ignored local files or managed deployment secrets instead.`, scoreImpact: secretFile ? 5 : 1 });
+    const gitPath = git.root ? relative(git.root, file) : path;
+    const tracked = git.root ? spawnSync('git', ['-C', git.root, 'ls-files', '--error-unmatch', '--', gitPath], { encoding: 'utf8' }).status === 0 : false;
+    const ignored = !tracked && git.root ? spawnSync('git', ['-C', git.root, 'check-ignore', '-q', '--', gitPath], { encoding: 'utf8' }).status === 0 : false;
+    if (tracked) findings.push({ id: `sensitive-repository-file-tracked:${path}`, ruleId: 'sensitive-repository-file-tracked', severity: 'medium', risk: 'architectural', file: path, lines: [], evidence: `Sensitive-looking file is tracked by Git: ${path}. YCF did not read its contents. Remove it from the repository history as appropriate, rotate any credentials, and replace it with deployment secrets or a safe example file.`, scoreImpact: 8 });
+    else if (ignored) findings.push({ id: `sensitive-repository-file-protected:${path}`, ruleId: 'sensitive-repository-file-protected', severity: 'low', risk: 'report-only', file: path, lines: [], evidence: `Sensitive-looking local file is ignored by Git: ${path}. YCF did not read its contents. Keep the ignore rule and verify the file is not tracked in another branch or release artifact.`, scoreImpact: 0 });
+    else findings.push({ id: `sensitive-repository-file:${path}`, ruleId: 'sensitive-repository-file', severity: secretFile ? 'medium' : 'low', risk: 'architectural', file: path, lines: [], evidence: `Sensitive-looking file detected by name: ${path}. YCF did not read its contents, and Git ignore protection was not confirmed. Keep it out of commits and public deployments; use ignored local files or managed deployment secrets instead.`, scoreImpact: secretFile ? 5 : 1 });
   }
   return findings;
 }
