@@ -250,7 +250,21 @@ program.command('understand [target]').description('Map repository modules and l
   }
 });
 
-program.command('map [target]').description('Generate and summarize the repository architecture graph.').option('--json', 'Emit the graph as JSON.').action((target = '.', options) => {
+function architectureHtml(report: ReturnType<typeof understand>): string {
+  const nodes = report.graph.nodes.map((node, index) => {
+    const x = 120 + (index % 4) * 250;
+    const y = 150 + Math.floor(index / 4) * 150;
+    return `<g class="node" tabindex="0"><rect x="${x}" y="${y}" width="210" height="58" rx="12"/><text x="${x + 105}" y="${y + 35}" text-anchor="middle">${node.file.replace(/[&<>\"]/g, (value) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[value] ?? value))}</text></g>`;
+  }).join('');
+  const positions = new Map(report.graph.nodes.map((node, index) => [node.id, { x: 120 + (index % 4) * 250 + 105, y: 150 + Math.floor(index / 4) * 150 + 58 }]));
+  const edges = report.graph.edges.map((edge) => {
+    const from = positions.get(edge.from); const to = positions.get(edge.to);
+    return from && to ? `<line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}"/>` : '';
+  }).join('');
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>YCF Architecture Map</title><style>body{margin:0;background:#0b1020;color:#e5e7eb;font:15px system-ui,sans-serif}header{padding:28px 34px;border-bottom:1px solid #26324a}h1{margin:0;color:#fb7185;font-size:28px}p{color:#94a3b8}main{padding:24px;overflow:auto}svg{min-width:920px;background:#111827;border:1px solid #334155;border-radius:16px}.node rect{fill:#1e293b;stroke:#fb7185;stroke-width:2}.node text{fill:#f8fafc;font-family:ui-monospace,monospace;font-size:14px}.node:focus rect,.node:hover rect{fill:#334155}line{stroke:#64748b;stroke-width:2;marker-end:url(#arrow)}</style></head><body><header><h1>YCF — architecture map</h1><p>${report.graph.nodes.length} modules · ${report.graph.edges.length} connections · ${report.graph.cycles.length} cycles</p></header><main><svg viewBox="0 0 ${Math.max(920, 370 + (report.graph.nodes.length % 4) * 250)} ${Math.max(360, 320 + Math.ceil(report.graph.nodes.length / 4) * 150)}" role="img" aria-label="Repository architecture graph"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#64748b"/></marker></defs>${edges}${nodes}</svg></main></body></html>`;
+}
+
+program.command('map [target]').description('Generate and summarize the repository architecture graph.').option('--json', 'Emit the graph as JSON.').option('--html', 'Write a self-contained visual map to .ycf/architecture.html.').action((target = '.', options) => {
   const report = understand(target);
   if (options.json) { console.log(JSON.stringify(report.graph, null, 2)); return; }
   const entryPoints = report.graph.nodes.filter((node) => node.entryPoint);
@@ -262,6 +276,7 @@ program.command('map [target]').description('Generate and summarize the reposito
   console.log(`Hotspots: ${report.hotspots.length}`);
   console.log(`Duplicate groups: ${report.duplicates.length} (${report.duplicates.filter((group) => group.kind === 'exact').length} confirmed, ${report.duplicates.filter((group) => group.kind === 'similar').length} likely)`);
   console.log(`Full map: ${join(report.target, '.ycf', 'graph.json')}`);
+  if (options.html) { const htmlPath = join(report.target, '.ycf', 'architecture.html'); writeFileSync(htmlPath, architectureHtml(report), 'utf8'); console.log(`Visual map: ${htmlPath}`); }
 });
 
 program.command('report [target]').description('Persist the current read-only audit as JSON and Markdown in .ycf.').action((target = '.') => {

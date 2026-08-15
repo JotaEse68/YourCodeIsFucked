@@ -40,6 +40,9 @@ cd your-project
 ycf audit
 ycf map
 
+# Open the first visual architecture map locally.
+ycf map --html
+
 # See the plan before allowing a change.
 ycf unfuck --dry-run
 ```
@@ -64,7 +67,7 @@ ycf release
 | Command | What it does | Changes code? |
 | --- | --- | --- |
 | `ycf audit` | Audits a repository and explains risks in your chosen language and level. | No |
-| `ycf map` | Generates an architecture map of detected entry points and local module connections. | No |
+| `ycf map` | Generates an architecture map of detected entry points and local module connections. Add `--html` for a self-contained visual map in `.ycf/architecture.html`. | No |
 | `ycf ai-residue` | Finds development and AI-residue candidates without changing code or attribution. | No |
 | `ycf cleanup --yes` | Removes parser-confirmed debug residue and selected unused named imports with Git safety. | Yes, only after confirmation |
 | `ycf unfuck --dry-run` | Shows the current safe pipeline: audit, checkpoint, cleanup, verify and report. | No |
