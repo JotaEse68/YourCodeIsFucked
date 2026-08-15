@@ -135,6 +135,8 @@ YCF está diseñado para trabajar junto a Codex, Claude Code y otros agentes. El
 
 Copia `skills/ycf-quality-gate` en la carpeta de skills de tu agente y pídele que audite el repositorio antes de cambiarlo. La skill enseña a explicar hallazgos, pedir aprobación, conservar checkpoints de Git y verificar el resultado.
 
+Los adaptadores para Claude Code, Cursor y GitHub Copilot están en [`integrations/`](integrations/).
+
 ## Hazlo comprensible para tu equipo
 
 `ycf init` permite elegir idioma y nivel de explicación. El inglés es el idioma por defecto; también están disponibles español, portugués, francés, alemán, italiano, árabe y chino.
