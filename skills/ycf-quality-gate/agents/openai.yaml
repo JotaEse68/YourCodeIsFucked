@@ -1,0 +1,4 @@
+interface:
+  display_name: "YCF Quality Gate"
+  short_description: "Audit, map and safely improve a codebase with YCF"
+  default_prompt: "Use YCF to audit this repository, explain risks, and propose only verified reversible changes."
