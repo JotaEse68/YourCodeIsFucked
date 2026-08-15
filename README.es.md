@@ -10,16 +10,24 @@
 [English](README.md) · [Português](README.pt.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Italiano](README.it.md) · [العربية](README.ar.md) · [中文](README.zh.md)
 </details>
 
-## Usa lo que quieras.
+## Usa lo que te salga de las narices.
 
 Claude Code · Codex · Cursor · Copilot · Gemini · Lovable · Bolt · Tus propias manos
 
 ```text
-                 crea rápido
-                      ↓
-          YCF — la capa de calidad
-                      ↓
-              envía código limpio
+                 CONSTRUYE RÁPIDO
+                         ↓
+                 CREA COSAS CHULAS
+                         ↓
+               ACUMULA MIERDA TÉCNICA
+                         ↓
+                        YCF
+                         ↓
+          ENTIENDE · AUDITA · LIMPIA · REFACTORIZA
+                         ↓
+                      VERIFICA
+                         ↓
+                 PUBLICA CÓDIGO LIMPIO
 ```
 
 **No detectamos código escrito por IA. Detectamos código malo.**
@@ -27,6 +35,10 @@ Claude Code · Codex · Cursor · Copilot · Gemini · Lovable · Bolt · Tus pr
 YCF es una CLI gratuita y open source para entender un proyecto, encontrar problemas de ingeniería medibles, limpiar residuos confirmados de forma segura, planificar mejoras estructurales y comprobar que no se ha roto nada. Sirve al vibecoder con una gran idea, al senior con seis ventanas de agentes abiertas y al equipo que necesita quality gates antes de publicar.
 
 El vibe coding es divertido. Limpiar después no.
+
+YCF no detecta quién escribió tu código. Detecta si está jodido.
+
+Cada auditoría calcula cinco dimensiones deterministas: **Arquitectura**, **Mantenibilidad**, **Seguridad**, **Tests** y **Documentación**. Mismo commit, misma configuración, mismo resultado.
 
 ## Empieza aquí
 
