@@ -21,8 +21,8 @@ importers:
   packages/cli:
     dependencies:
       '@jotaese68/core':
-        specifier: workspace:^
-        version: link:../core
+        specifier: ^0.1.1
+        version: 0.1.1
       commander:
         specifier: ^13.1.0
         version: 13.1.0
@@ -190,6 +190,9 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@jotaese68/core@0.1.1':
+    resolution: {integrity: sha512-XmpUeASme/ZPzkLwXleIxlgwsNl09K4ni1PkgENVmjXAacy45PRGoUxj/41N0FMJrnQPdCMoy03A7EVS/h77Pg==}
 
   '@jridgewell/sourcemap-codec@1.5.5':
     resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==}
@@ -685,6 +688,10 @@ snapshots:
 
   '@esbuild/win32-x64@0.28.2':
     optional: true
+
+  '@jotaese68/core@0.1.1':
+    dependencies:
+      typescript: 5.9.3
 
   '@jridgewell/sourcemap-codec@1.5.5': {}
 
