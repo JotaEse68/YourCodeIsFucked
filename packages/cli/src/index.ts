@@ -32,6 +32,22 @@ function validAudience(value: string | undefined): value is Audience {
 
 function guidedAdvice(finding: { ruleId: string; evidence: string }, language: Language, audience: Audience): string {
   if (audience !== 'guided') return finding.evidence;
+  if (finding.ruleId === 'wordpress-rest-persistence-review') {
+    const sanitizer = /Recommended after confirming the expected type: ([^.]+),/.exec(finding.evidence)?.[1];
+    if (sanitizer) {
+      const messages: Record<Language, string> = {
+        es: `Este dato REST se guarda sin sanitización visible. YCF sugiere \`${sanitizer}\` por el nombre del dato; confirma primero que el tipo esperado sea correcto.`,
+        en: `This REST value is stored without visible sanitization. YCF suggests \`${sanitizer}\` from the value name; first confirm that the expected type is correct.`,
+        pt: `Este valor REST é guardado sem sanitização visível. O YCF sugere \`${sanitizer}\` pelo nome do valor; primeiro confirme o tipo esperado.`,
+        fr: `Cette valeur REST est stockée sans sanitisation visible. YCF suggère \`${sanitizer}\` d’après son nom ; confirmez d’abord le type attendu.`,
+        de: `Dieser REST-Wert wird ohne sichtbare Bereinigung gespeichert. YCF empfiehlt anhand des Namens \`${sanitizer}\`; bestätige zuerst den erwarteten Typ.`,
+        it: `Questo valore REST viene salvato senza sanitizzazione visibile. YCF suggerisce \`${sanitizer}\` in base al nome; conferma prima il tipo previsto.`,
+        ar: `يُحفظ مقدار REST هذا دون تعقيم ظاهر. يقترح YCF \`${sanitizer}\` بناءً على الاسم؛ أكّد أولاً النوع المتوقع.`,
+        zh: `此 REST 值在没有可见清理的情况下被保存。YCF 根据名称建议使用 \`${sanitizer}\`；请先确认预期的数据类型。`
+      };
+      return messages[language];
+    }
+  }
   const advice: Record<Language, Record<string, string>> = {
     es: {
       'debug-statements': 'Se encontró una pausa de depuración. Riesgo bajo: YCF puede eliminarla y verificar el proyecto.',

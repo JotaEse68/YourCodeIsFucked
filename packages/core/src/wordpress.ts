@@ -201,6 +201,15 @@ function visiblySanitized(body: string, variable: string, before: number): boole
   return new RegExp(`\\b(?:sanitize_[A-Za-z_]+|absint|intval|floatval|wp_kses(?:_[A-Za-z_]+)?)\\s*\\(\\s*\\$${variable}\\b`).test(body.slice(0, before + 1));
 }
 
+function sanitizationRecommendation(variable: string): { sanitizer: string; reason: string } {
+  const name = variable.toLowerCase();
+  if (/(?:^|_)(?:id|ids|count|page|limit|offset|age|quantity)(?:_|$)/.test(name)) return { sanitizer: 'absint', reason: 'the name suggests a non-negative integer' };
+  if (/(?:email|e_mail)/.test(name)) return { sanitizer: 'sanitize_email + is_email', reason: 'the name suggests an email address' };
+  if (/(?:url|uri|link|website)/.test(name)) return { sanitizer: 'esc_url_raw', reason: 'the name suggests a URL' };
+  if (/(?:html|content|description|bio)/.test(name)) return { sanitizer: 'wp_kses_post', reason: 'the name suggests allowed HTML content' };
+  return { sanitizer: 'sanitize_text_field', reason: 'the value appears to be plain text' };
+}
+
 /** Traces simple REST request values into WordPress persistence calls, including helpers in another inspected PHP file. */
 export function wordpressRestPersistenceFindings(sources: WordPressSource[]): Finding[] {
   const definitions = callbackDefinitions(sources);
@@ -227,7 +236,8 @@ export function wordpressRestPersistenceFindings(sources: WordPressSource[]): Fi
       const key = `${callback.file}:${inputLine}:${storage}`;
       if (reported.has(key)) continue;
       reported.add(key);
-      findings.push({ id: `wordpress-rest-persistence-review:${callback.file}:${inputLine}:${reported.size}`, ruleId: 'wordpress-rest-persistence-review', severity: 'medium', risk: 'architectural', file: callback.file, lines: [inputLine], evidence: `REST request value $${variable} from callback ${callbackName} reaches a WordPress ${storage} without visible sanitization. Validate the expected type and sanitize it before storing.`, scoreImpact: 4 });
+      const recommendation = sanitizationRecommendation(variable);
+      findings.push({ id: `wordpress-rest-persistence-review:${callback.file}:${inputLine}:${reported.size}`, ruleId: 'wordpress-rest-persistence-review', severity: 'medium', risk: 'architectural', file: callback.file, lines: [inputLine], evidence: `REST request value $${variable} from callback ${callbackName} reaches a WordPress ${storage} without visible sanitization. Recommended after confirming the expected type: ${recommendation.sanitizer}, because ${recommendation.reason}.`, scoreImpact: 4 });
     }
   }
   return findings;

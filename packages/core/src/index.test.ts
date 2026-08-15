@@ -241,6 +241,19 @@ describe('stack detection', () => {
     expect(findings).toEqual([]);
   });
 
+  it('recommends a conservative sanitizer from a REST value name without applying it', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    writeFileSync(join(directory, 'routes.php'), [
+      '<?php',
+      "register_rest_route('ycf/v1', '/email', array('callback' => 'save_email', 'permission_callback' => 'can_save_email'));",
+      "function save_email($request) { $email = $request->get_param('email'); update_option('contact_email', $email); }",
+      "function can_save_email() { return current_user_can('manage_options'); }"
+    ].join('\n'));
+    const finding = audit(directory).findings.find((item) => item.ruleId === 'wordpress-rest-persistence-review');
+    expect(finding?.evidence).toContain('sanitize_email + is_email');
+  });
+
   it('honours the configured file-size limit', () => {
     const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
     temporaryDirectories.push(directory);
