@@ -7,11 +7,11 @@
   "packageManager": "pnpm@11.19.0",
   "engines": { "node": ">=22" },
   "scripts": {
-    "build": "corepack pnpm --filter @ycf/core build && corepack pnpm --filter your-code-is-fucked build",
+    "build": "corepack pnpm --filter @jotaese68/core build && corepack pnpm --filter your-code-is-fucked build",
     "test": "corepack pnpm -r test",
-    "typecheck": "corepack pnpm --filter @ycf/core typecheck && corepack pnpm --filter @ycf/core build && corepack pnpm --filter your-code-is-fucked typecheck",
+    "typecheck": "corepack pnpm --filter @jotaese68/core typecheck && corepack pnpm --filter @jotaese68/core build && corepack pnpm --filter your-code-is-fucked typecheck",
     "ycf": "corepack pnpm build && node packages/cli/dist/index.js",
-    "pack:check": "corepack pnpm --filter @ycf/core exec npm pack --dry-run && corepack pnpm --filter your-code-is-fucked exec npm pack --dry-run"
+    "pack:check": "corepack pnpm --filter @jotaese68/core exec npm pack --dry-run && corepack pnpm --filter your-code-is-fucked exec npm pack --dry-run"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

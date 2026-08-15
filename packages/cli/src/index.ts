@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { Command } from 'commander';
-import { aiResidueFindings, audit, cleanupDevArtifacts, createCheckpoint, dependencyAudit, dependencyAuditPlan, latestCheckpoint, loadConfig, refactorPlan, releaseCheckLabel, releaseHeading, releaseReadiness, releaseReportLabel, rollbackToCheckpoint, understand, verificationPlan, verify, writeAuditReport, writeDependencyAuditReport, writeReleaseReport, writeUnfuckReport } from '@ycf/core';
+import { aiResidueFindings, audit, cleanupDevArtifacts, createCheckpoint, dependencyAudit, dependencyAuditPlan, latestCheckpoint, loadConfig, refactorPlan, releaseCheckLabel, releaseHeading, releaseReadiness, releaseReportLabel, rollbackToCheckpoint, understand, verificationPlan, verify, writeAuditReport, writeDependencyAuditReport, writeReleaseReport, writeUnfuckReport } from '@jotaese68/core';
 
 // pnpm forwards a standalone `--` to package scripts on some platforms.
 if (process.argv[2] === '--') process.argv.splice(2, 1);

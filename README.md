@@ -99,7 +99,7 @@ Copyright 2026 JotaEse68. YCF is licensed under the [Apache License 2.0](LICENSE
 
 ## Planned packages
 
-Version `0.1.0` publishes `your-code-is-fucked` for the `ycf` command and `@ycf/core` for the reusable engine. Run `corepack pnpm pack:check` to inspect their package contents without publishing.
+Version `0.1.1` publishes `your-code-is-fucked` for the `ycf` command and `@jotaese68/core` for the reusable engine. Run `corepack pnpm pack:check` to inspect their package contents without publishing.
 
 ## Current status
 

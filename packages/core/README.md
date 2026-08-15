@@ -1,4 +1,4 @@
-# @ycf/core
+# @jotaese68/core
 
 The deterministic engine behind YCF. It audits and maps repositories, produces supervised plans, and applies only explicitly allowlisted safe cleanup operations.
 
