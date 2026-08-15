@@ -361,7 +361,7 @@ function dependencyFindings(target: string, files: string[]): Finding[] {
   if (!existsSync(packagePath)) return [];
   const pkg = JSON.parse(readFileSync(packagePath, 'utf8')) as { dependencies?: Record<string, string> };
   const imported = importedPackages(files);
-  return Object.keys(pkg.dependencies ?? {}).filter((dependency) => !imported.has(dependency)).map((dependency) => ({
+  return Object.keys(pkg.dependencies ?? {}).filter((dependency) => !imported.has(dependency)).flatMap((dependency) => [{
     id: `unused-production-dependency:${dependency}`,
     ruleId: 'unused-production-dependency' as const,
     severity: 'low' as const,
@@ -370,7 +370,50 @@ function dependencyFindings(target: string, files: string[]): Finding[] {
     lines: [],
     evidence: `Production dependency "${dependency}" has no static import or require in scanned source files. Dynamic/runtime use is possible; review before removal.`,
     scoreImpact: 2
-  }));
+  }, {
+    id: `dependency-nobody-uses:${dependency}`,
+    ruleId: 'dependency-nobody-uses' as const,
+    severity: 'low' as const,
+    risk: 'report-only' as const,
+    file: 'package.json',
+    lines: [],
+    evidence: `DependencyNobodyUses candidate: "${dependency}" has no static import or require in scanned source files. Runtime use is possible; verify before removal.`,
+    scoreImpact: 0
+  }]);
+}
+
+function deadCodeFindings(target: string, files: string[]): Finding[] {
+  const known = new Set(files.map((file) => relative(target, file)));
+  const incoming = new Set<string>();
+  for (const file of files) for (const dependency of localDependencies(target, file, known)) incoming.add(dependency);
+  const entries = entryPointPaths(target, files.map((file) => ({ path: relative(target, file), extension: extname(file), lines: readFileSync(file, 'utf8').split(/\r?\n/).length })));
+  return files.filter((file) => {
+    const display = relative(target, file);
+    const content = readFileSync(file, 'utf8');
+    return !incoming.has(display) && !entries.has(display) && /\b(?:export|module\.exports)\b/.test(content) && !/\b(?:index|main|app|server|cli)\.(?:js|jsx|ts|tsx|mjs|cjs)$/.test(display);
+  }).map((file) => {
+    const display = relative(target, file);
+    return { id: `dead-code:${display}`, ruleId: 'dead-code' as const, severity: 'low' as const, risk: 'report-only' as const, file: display, lines: [], evidence: 'DeadCode candidate: this module exports code but no scanned local module imports it. Dynamic loading and framework entry points can make this a false positive; verify before removal.', scoreImpact: 2 };
+  });
+}
+
+function namedDetectorFindings(target: string, files: string[], config: YcfConfig): Finding[] {
+  return files.flatMap((file) => {
+    const display = relative(target, file);
+    const content = readFileSync(file, 'utf8');
+    const lines = content.split(/\r?\n/);
+    const findings: Finding[] = [];
+    const todoLines = lineNumbers(content, /^\s*(?:\/\/|\/\*|\*|#).*\b(?:TODO|FIXME|HACK|temporary\s+fix)\b/i);
+    if (todoLines.length >= 2) findings.push({ id: `todo-from-hell:${display}`, ruleId: 'todo-from-hell', severity: 'low', risk: 'report-only', file: display, lines: todoLines, evidence: `TODOFromHell: ${todoLines.length} unresolved TODO/FIXME/HACK markers. Turn each into an issue, a deadline, or a real fix; comments are not a project-management system.`, scoreImpact: Math.min(todoLines.length, 6) });
+    const helperLines = lineNumbers(content, /\b(?:function|const|let|var)\s+(?:processDataThing|doThing|helper|mysteryHelper|handleStuff)\b/i);
+    if (helperLines.length) findings.push({ id: `mystery-helper:${display}`, ruleId: 'mystery-helper', severity: 'low', risk: 'report-only', file: display, lines: helperLines, evidence: 'MysteryHelper: a vague helper name hides responsibility. Trace its callers and rename or narrow it only after confirming behavior.', scoreImpact: 2 });
+    if (['.tsx', '.jsx'].includes(extname(file))) {
+      const imports = (content.match(/^\s*import\s/gm) ?? []).length;
+      const component = complexityRegions(content).find((region) => /^[A-Z]/.test(region.name) && /<[A-Za-z][^>]*>/.test(region.body));
+      if (component && (component.end - component.start + 1 > Math.max(300, config.refactor.maxFunctionLines * 3) || imports >= 15)) findings.push({ id: `god-component:${display}:${component.name}`, ruleId: 'god-component', severity: 'medium', risk: 'safe-refactor', file: display, lines: [component.start, component.end], evidence: `GodComponent: ${component.name} combines a large React body with ${imports} import(s). Identify cohesive responsibilities before extracting anything.`, scoreImpact: 6 });
+    }
+    return findings;
+  });
 }
 
 type DuplicateOccurrence = DuplicateGroup['occurrences'][number];
@@ -445,9 +488,27 @@ function duplicateFindings(target: string, files: string[]): Finding[] {
   });
 }
 
-export function calculateScore(findings: Finding[]): AuditReport['score'] {
+function dimensionPenalty(findings: Finding[], rules: Set<Finding['ruleId']>): number {
+  return Math.min(85, findings.filter((finding) => rules.has(finding.ruleId)).reduce((total, finding) => total + finding.scoreImpact, 0) * 3);
+}
+
+function scoreDimensions(target: string, files: string[], findings: Finding[]): AuditReport['score']['dimensions'] {
+  const architecture = Math.max(0, 100 - dimensionPenalty(findings, new Set(['large-source-file', 'long-function', 'large-react-component', 'god-component', 'dead-code', 'duplicate-code', 'similar-duplicate-code', 'high-complexity'])));
+  const maintainability = Math.max(0, 100 - dimensionPenalty(findings, new Set(['unused-import', 'ai-residue', 'suspicious-filename', 'mystery-helper', 'todo-from-hell', 'dependency-nobody-uses', 'unused-production-dependency', 'duplicate-code', 'similar-duplicate-code', 'high-complexity', 'large-source-file', 'long-function'])));
+  const security = Math.max(0, 100 - dimensionPenalty(findings, new Set(['sensitive-repository-file', 'sensitive-repository-file-tracked', 'wordpress-hardcoded-config-secret', 'wordpress-wpdb-unprepared-query', 'wordpress-unsanitized-input', 'wordpress-unescaped-output', 'wordpress-rest-route-permission', 'wordpress-ajax-nonce-review', 'wordpress-ajax-capability-review', 'wordpress-sensitive-data-exposure', 'typescript-error-suppression'])));
+  const packagePath = join(target, 'package.json');
+  const hasTestScript = existsSync(packagePath) && /"test"\s*:/.test(readFileSync(packagePath, 'utf8'));
+  const hasTestFiles = files.some((file) => /(?:^|[._-])(?:test|spec)\.[^.]+$|[\\/]__tests__[\\/]/i.test(file));
+  const tests = hasTestScript ? 90 : hasTestFiles ? 65 : 25;
+  const hasReadme = existsSync(join(target, 'README.md')) || existsSync(join(target, 'README.es.md'));
+  const hasDocs = existsSync(join(target, 'docs')) || existsSync(join(target, 'documentation'));
+  const documentation = Math.min(100, (hasReadme ? 65 : 20) + (hasDocs ? 25 : 0) + (files.some((file) => /\.md$/i.test(file)) ? 10 : 0));
+  return { architecture, maintainability, security, tests, documentation };
+}
+
+export function calculateScore(findings: Finding[], dimensions?: AuditReport['score']['dimensions']): AuditReport['score'] {
   const fucked = Math.min(100, findings.reduce((total, finding) => total + finding.scoreImpact, 0));
-  return { fucked, health: 100 - fucked, method: 'deterministic-v1' };
+  return { fucked, health: 100 - fucked, method: 'deterministic-v1', dimensions: dimensions ?? { architecture: 100, maintainability: 100, security: 100, tests: 0, documentation: 0 } };
 }
 
 export function audit(target: string): AuditReport {
@@ -458,6 +519,8 @@ export function audit(target: string): AuditReport {
   const wordpressSources = files.filter((file) => extname(file) === '.php').map((file) => ({ path: relative(resolvedTarget, file) || file, content: readFileSync(file, 'utf8') }));
   const findings = [
     ...files.flatMap((file) => analyzeFile(resolvedTarget, file, config)),
+    ...deadCodeFindings(resolvedTarget, files),
+    ...namedDetectorFindings(resolvedTarget, files, config),
     ...sensitiveRepositoryFindings(resolvedTarget, config),
     ...wordpressAjaxFindings(wordpressSources),
     ...wordpressDataFlowFindings(wordpressSources),
@@ -469,6 +532,7 @@ export function audit(target: string): AuditReport {
     ...dependencyFindings(resolvedTarget, files),
     ...duplicateFindings(resolvedTarget, files)
   ];
+  const score = calculateScore(findings, scoreDimensions(resolvedTarget, files, findings));
   return {
     version: 1,
     target: resolvedTarget,
@@ -478,7 +542,7 @@ export function audit(target: string): AuditReport {
     sourceFiles: files.length,
     git: findGitRoot(resolvedTarget),
     findings,
-    score: calculateScore(findings)
+    score
   };
 }
 

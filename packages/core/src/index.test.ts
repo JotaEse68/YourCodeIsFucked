@@ -471,6 +471,17 @@ describe('stack detection', () => {
     expect(report).toMatchObject({ found: true, module: 'feature.js', directDependencies: ['shared.js'], dependencies: ['shared.js'], directDependents: ['app.ts'], dependents: ['app.ts'], readOnly: true });
   });
 
+  it('calculates named demon findings and deterministic quality dimensions', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    writeFileSync(join(directory, 'package.json'), '{"dependencies":{"left-pad":"1.0.0"},"scripts":{"test":"vitest"}}');
+    writeFileSync(join(directory, 'entry.ts'), '// TODO: fix this\n// FIXME: fix that\nexport function processDataThing(value: unknown) { return value; }');
+    writeFileSync(join(directory, 'orphan.ts'), 'export const orphan = 1;');
+    const report = audit(directory);
+    expect(report.findings.map((finding) => finding.ruleId)).toEqual(expect.arrayContaining(['todo-from-hell', 'mystery-helper', 'dead-code', 'dependency-nobody-uses']));
+    expect(report.score.dimensions).toEqual(expect.objectContaining({ architecture: expect.any(Number), maintainability: expect.any(Number), security: expect.any(Number), tests: 90, documentation: expect.any(Number) }));
+  });
+
   it('reports complexity, exact duplicate blocks and unreferenced production dependencies without changing code', () => {
     const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
     temporaryDirectories.push(directory);
