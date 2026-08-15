@@ -27,7 +27,11 @@ importers:
         specifier: ^13.1.0
         version: 13.1.0
 
-  packages/core: {}
+  packages/core:
+    dependencies:
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
 
 packages:
 
