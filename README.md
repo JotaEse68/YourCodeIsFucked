@@ -46,6 +46,12 @@ ycf unfuck --dry-run
 
 When you agree with the plan, use `--yes`. YCF creates a Git checkpoint before safe cleanup, verifies the result and rolls back if verification fails.
 
+### See it in five seconds
+
+![YCF audits a deliberately messy demo project, then shows a safe unfuck plan without changing files.](assets/ycf-demo.gif)
+
+This is a real run against [`examples/bad-vibe`](examples/bad-vibe): nine findings, a deterministic score and one parser-confirmed safe cleanup candidate. The demo stays read-only until `--yes` is explicitly given.
+
 ```bash
 ycf cleanup --yes
 ycf unfuck --yes

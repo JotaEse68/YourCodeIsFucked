@@ -1,0 +1,3 @@
+refactor:
+  max_function_lines: 4
+  max_file_lines: 18

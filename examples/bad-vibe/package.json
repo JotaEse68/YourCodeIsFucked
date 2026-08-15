@@ -1,0 +1,10 @@
+{
+  "name": "bad-vibe-shop-demo",
+  "private": true,
+  "dependencies": {
+    "react": "19.0.0"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}
