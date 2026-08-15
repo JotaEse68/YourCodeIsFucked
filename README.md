@@ -46,6 +46,9 @@ ycf map --html
 # Ask what a change to one module can affect (read-only).
 ycf impact src/checkout.ts .
 
+# Generate the local visual cockpit.
+ycf cockpit .
+
 # See the plan before allowing a change.
 ycf unfuck --dry-run
 ```
@@ -72,6 +75,7 @@ ycf release
 | `ycf audit` | Audits a repository and explains risks in your chosen language and level. | No |
 | `ycf map` | Generates an architecture map of detected entry points and local module connections. Add `--html` for a self-contained visual map in `.ycf/architecture.html`. | No |
 | `ycf impact <module> [target]` | Explains direct/transitive dependencies and dependents before you touch a module. Static imports only; no files changed. | No |
+| `ycf cockpit [target]` | Writes a self-contained local HTML cockpit with scores, findings, modules and selectable impact views. | No |
 | `ycf ai-residue` | Finds development and AI-residue candidates without changing code or attribution. | No |
 | `ycf cleanup --yes` | Removes parser-confirmed debug residue and selected unused named imports with Git safety. | Yes, only after confirmation |
 | `ycf unfuck --dry-run` | Shows the current safe pipeline: audit, checkpoint, cleanup, verify and report. | No |
@@ -136,7 +140,7 @@ Not to pretend code was written by a human. To make sure that, whoever wrote it,
 
 YCF is not just a prompt wrapper or a single agent instruction. Its core is a deterministic CLI: it maps, measures, checks Git safety, writes reports and runs verification. That gives agents something better than a vague opinion: evidence and guardrails.
 
-YCF is designed to work alongside Codex, Claude Code and other coding agents. The read-only `impact` command shows the statically visible change surface; agent skills, richer framework-aware impact analysis and a local visual cockpit remain on the roadmap.
+YCF is designed to work alongside Codex, Claude Code and other coding agents. The read-only `impact` command and local cockpit show the statically visible change surface; agent skills and richer framework-aware impact analysis remain on the roadmap.
 
 ## Make it readable for your team
 
@@ -151,9 +155,9 @@ The engine stays the same. Only the explanation changes: plain guidance for peop
 
 ## Roadmap
 
-The next big “wow” is a local visual cockpit: navigate the architecture, filter risks, and ask what may be affected before changing something important.
+The cockpit is the local “wow”: navigate the architecture, filter modules, and ask what may be affected before changing something important.
 
-Later, a local-first YCF cockpit can read `.ycf/` reports and offer Audit, Map, Review cleanup, Refactor plan, Verify and Export report. Any button that can change code must show its plan and Git diff before it is allowed to act.
+Next, the cockpit can grow into Audit, Map, Review cleanup, Refactor plan, Verify and Export report panels. Any button that can change code must show its plan and Git diff before it is allowed to act.
 
 ## Contributing and security
 
