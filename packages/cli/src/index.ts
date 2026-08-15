@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, existsSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
@@ -327,6 +328,11 @@ program.command('ai-residue [target]').description('Find AI/dev residue candidat
   console.log('No code, licenses, copyright notices, or attribution were modified.');
 });
 
+function gitDiffSummary(target: string): string {
+  try { return execFileSync('git', ['-C', resolve(target), 'diff', '--stat'], { encoding: 'utf8' }).trim() || 'No Git diff produced.'; }
+  catch { return 'Git diff unavailable; inspect the working tree manually.'; }
+}
+
 program.command('cleanup [target]').description('Remove parser-confirmed debug artifacts with Git safety and verification.').option('--dry-run', 'Show the planned cleanup without writing files.').option('--yes', 'Confirm the source-code changes.').action((target = '.', options) => {
   const candidates = audit(target).findings.filter((finding) => finding.ruleId === 'debug-statements' || finding.ruleId === 'debug-console' || finding.ruleId === 'unused-import');
   const planned = candidates.reduce((total, finding) => total + finding.lines.length, 0);
@@ -346,6 +352,8 @@ program.command('cleanup [target]').description('Remove parser-confirmed debug a
     return;
   }
   console.log(`Cleanup complete: removed ${cleanup.removedDebugStatements} debugger statement(s), ${cleanup.removedDebugConsoleCalls} literal debug console call(s), and ${cleanup.removedUnusedImports} unused named import(s) in ${cleanup.changedFiles.length} file(s).`);
+  console.log('Review the Git diff before committing:');
+  console.log(gitDiffSummary(target));
   console.log(`Checkpoint retained: ${checkpoint.ref}`);
   console.log('Verification passed.');
 });
