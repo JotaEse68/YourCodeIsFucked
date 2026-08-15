@@ -254,6 +254,19 @@ describe('stack detection', () => {
     expect(finding?.evidence).toContain('sanitize_email + is_email');
   });
 
+  it('reports direct variable interpolation in $wpdb SQL but accepts $wpdb->prepare', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    writeFileSync(join(directory, 'database.php'), [
+      '<?php',
+      '$wpdb->query("DELETE FROM wp_profiles WHERE id = $id");',
+      "$wpdb->get_results('SELECT * FROM wp_profiles WHERE email = ' . $email);",
+      "$wpdb->query($wpdb->prepare('DELETE FROM wp_profiles WHERE id = %d', $safe_id));"
+    ].join('\n'));
+    const findings = audit(directory).findings.filter((finding) => finding.ruleId === 'wordpress-wpdb-unprepared-query');
+    expect(findings).toMatchObject([{ lines: [2, 3], severity: 'medium', scoreImpact: 10 }]);
+  });
+
   it('honours the configured file-size limit', () => {
     const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
     temporaryDirectories.push(directory);

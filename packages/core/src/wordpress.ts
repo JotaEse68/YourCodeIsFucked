@@ -26,6 +26,11 @@ export function wordpressFindings(displayPath: string, content: string): Finding
   if (rawInputLines.length > 0) findings.push({ id: `wordpress-unsanitized-input:${displayPath}`, ruleId: 'wordpress-unsanitized-input', severity: 'medium', risk: 'architectural', file: displayPath, lines: rawInputLines, evidence: `${rawInputLines.length} request input use(s) appear without same-line sanitization. Trace validation and sanitization before using or storing the value.`, scoreImpact: Math.min(rawInputLines.length * 3, 12) });
   const rawOutputLines = linesMatching(content, /\becho\s+\$\w+/).filter((line) => !/\besc_(?:html|attr|url|js|textarea)|wp_kses/.test(content.split(/\r?\n/)[line - 1]));
   if (rawOutputLines.length > 0) findings.push({ id: `wordpress-unescaped-output:${displayPath}`, ruleId: 'wordpress-unescaped-output', severity: 'medium', risk: 'architectural', file: displayPath, lines: rawOutputLines, evidence: `${rawOutputLines.length} output line(s) echo a variable without visible escaping. Confirm contextual escaping before rendering untrusted data.`, scoreImpact: Math.min(rawOutputLines.length * 3, 12) });
+  const wpdbMethods = '(?:query|get_results|get_row|get_var|get_col)';
+  const interpolatedDoubleQuotes = new RegExp(`\\$wpdb\\s*->\\s*${wpdbMethods}\\s*\\(\\s*"[^"\\r\\n]*\\$`, 'g');
+  const concatenatedQuery = new RegExp(`\\$wpdb\\s*->\\s*${wpdbMethods}\\s*\\(\\s*'[^'\\r\\n]*'\\s*\\.\\s*\\$`, 'g');
+  const unpreparedQueryLines = [...content.matchAll(interpolatedDoubleQuotes), ...content.matchAll(concatenatedQuery)].map((match) => lineAt(content, match.index ?? 0)).filter((line, index, lines) => lines.indexOf(line) === index).sort((left, right) => left - right);
+  if (unpreparedQueryLines.length > 0) findings.push({ id: `wordpress-wpdb-unprepared-query:${displayPath}`, ruleId: 'wordpress-wpdb-unprepared-query', severity: 'medium', risk: 'architectural', file: displayPath, lines: unpreparedQueryLines, evidence: `${unpreparedQueryLines.length} $wpdb query appears to interpolate a variable directly into SQL. Use $wpdb->prepare with placeholders such as %d, %s, or %f before executing the query.`, scoreImpact: Math.min(unpreparedQueryLines.length * 5, 15) });
   return findings;
 }
 
