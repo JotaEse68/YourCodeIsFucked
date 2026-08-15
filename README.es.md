@@ -28,6 +28,8 @@ Ejecuta `ycf cleanup --dry-run` para ver cambios seguros. Solo usa `ycf cleanup 
 
 Antes de publicar, ejecuta `ycf release`. Reúne auditoría, mapa arquitectónico, verificaciones disponibles, estado limpio de Git y README; después guarda un informe claro de **LISTO** o **REVISIÓN NECESARIA** en `.ycf/`. Nunca modifica el código fuente. Usa el idioma elegido en `ycf init` o indícalo con `ycf release --language es`.
 
+Cuando algo requiera atención, YCF explica si bloquea la publicación, el riesgo en lenguaje claro y el siguiente paso seguro. Por ejemplo, te indicará crear un commit antes de publicar si quedan cambios sin guardar.
+
 ## Qué protege YCF
 
 YCF no modifica automáticamente autenticación, pagos, APIs públicas, esquemas de base de datos, integraciones externas ni callbacks dinámicos de frameworks. `ycf audit` nunca modifica el código.

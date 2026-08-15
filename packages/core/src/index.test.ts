@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { aiResidueFindings, audit, cleanupDebugStatements, cleanupDevArtifacts, detectStacks, duplicateGroups, loadConfig, refactorPlan, releaseReadiness, understand, verificationPlan, writeAuditReport, writeReleaseReport, writeUnfuckReport } from './index.js';
+import { aiResidueFindings, audit, cleanupDebugStatements, cleanupDevArtifacts, detectStacks, duplicateGroups, loadConfig, refactorPlan, releaseCheckLabel, releaseReadiness, understand, verificationPlan, writeAuditReport, writeReleaseReport, writeUnfuckReport } from './index.js';
 
 const temporaryDirectories: string[] = [];
 afterEach(() => temporaryDirectories.splice(0).forEach((directory) => rmSync(directory, { recursive: true, force: true })));
@@ -244,5 +244,6 @@ describe('stack detection', () => {
     expect(report.ready).toBe(true);
     expect(report.checks).toContainEqual(expect.objectContaining({ name: 'verification', status: 'warning' }));
     expect(readFileSync(paths.markdownPath, 'utf8')).toContain('YCF — READY');
+    expect(releaseCheckLabel('es', { name: 'git', status: 'failed', detail: 'ignored' })).toContain('crea un commit');
   });
 });
