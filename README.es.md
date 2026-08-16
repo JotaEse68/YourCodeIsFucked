@@ -38,6 +38,20 @@ El vibe coding es divertido. Limpiar después no.
 
 YCF no detecta quién escribió tu código. Detecta si está jodido.
 
+## ¿Hecho con IA? ¿Hecho por humanos? ¿Pesadilla mixta?
+
+Puede que lo escribieras todo tú.
+Puede que doce agentes hayan tocado el repositorio.
+Puede que empezara limpio y poco a poco se convirtiera en una escena del crimen.
+
+YCF sirve para los tres casos.
+
+Úsalo desde el primer día para mantener el codebase limpio.
+Úsalo seis meses después, cuando nadie sepa qué coño hace `final-final-v3`.
+
+No nos importa quién escribió el código.
+Nos importa que sea claro, mantenible y seguro de cambiar.
+
 Cada auditoría calcula cinco dimensiones deterministas: **Arquitectura**, **Mantenibilidad**, **Seguridad**, **Tests** y **Documentación**. Mismo commit, misma configuración, mismo resultado.
 
 ## Empieza aquí

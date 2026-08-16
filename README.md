@@ -43,6 +43,20 @@ El vibe coding es divertido. Limpiar después no.
 
 YCF es la capa de calidad para el desarrollo asistido por IA: entiende tu codebase, encuentra la deuda, propone el arreglo, verifica que nada se rompa y deja evidencia.
 
+## Built with AI? Built by humans? Mixed nightmare?
+
+Maybe you wrote everything yourself.
+Maybe twelve agents touched the repo.
+Maybe it started clean and slowly became a crime scene.
+
+YCF works in all three cases.
+
+Use it from day one to keep the codebase clean.
+Use it six months later when nobody knows what `final-final-v3` does.
+
+We don't care who wrote the code.
+We care whether it's clear, maintainable and safe to change.
+
 ## So... how fucked is your code?
 
 ```bash
