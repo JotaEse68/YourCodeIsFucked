@@ -67,6 +67,26 @@ Pruebas ejecutadas correctamente:
 9. Añadir tests para aliases, export-from, require, import() y callbacks dinámicos.
 10. Revisar el cambio de dependencia CLI a `workspace:*` antes de preparar el siguiente commit.
 
+## Alcance de producto confirmado
+
+Se mantiene el cockpit, pero como una vista local, educativa y práctica: debe enseñar
+qué encontró YCF, por qué importa, qué bloque se ejecutó, qué verificación pasó y qué
+se revirtió. Incluirá una línea temporal sencilla de bloques y checkpoints para que
+alguien que no conozca YCF pueda aprender a usarlo sin leer un manual entero.
+
+Queda fuera del plan activo:
+
+- Cloud, cuentas y servicios remotos.
+- Gráficas inútiles, métricas decorativas y panel empresarial.
+- Comentarios automáticos en Pull Requests.
+- GitHub Action compleja; solo se contempla una acción mínima y copiable.
+- Automatización avanzada de npm.
+- Soporte profundo de todos los frameworks a la vez.
+- Monetización, funciones sociales, badges y estadísticas históricas sofisticadas.
+
+Estas piezas no se borran necesariamente del repositorio: dejan de bloquear el
+producto central y solo volverán si un problema real demuestra que hacen falta.
+
 ## Restricciones que siguen vigentes
 
 - No mezclar documentación, executor y demo en un único commit o publicación.
