@@ -44,6 +44,7 @@ Pruebas ejecutadas correctamente:
 - `ycf unfuck --apply-plan <archivo> --yes`.
 - Integración inicial del executor en `ycf seniorize`.
 - Demo automatizada que cubre movimiento, extracción, duplicado, fallo, rollback y continuación.
+- Demo externa reproducible en `scripts/acceptance-demo.mjs`, documentada en `docs/ACCEPTANCE-DEMO.md`, con fixture Git real, tests/build, fallo controlado, rollback aislado e informe antes/después.
 
 ## Archivos principales
 
@@ -62,10 +63,9 @@ Pruebas ejecutadas correctamente:
 4. Añadir generación de arquitectura BEFORE/AFTER al informe final, no solo snapshots de archivos.
 5. Conectar el plan arquitectónico generado con operaciones seguras reales de reorganización.
 6. Añadir detección explícita de duplicados estructurales y semánticos como candidatos supervisados.
-7. Crear una demo externa reproducible con proyecto fixture real, diff Git, tests/build y mapa de arquitectura visible.
-8. Revisar la compatibilidad de la operación CONSOLIDATE con APIs públicas y reexports.
-9. Añadir tests para aliases, export-from, require, import() y callbacks dinámicos.
-10. Revisar el cambio de dependencia CLI a `workspace:*` antes de preparar el siguiente commit.
+7. Revisar la compatibilidad de la operación CONSOLIDATE con APIs públicas y reexports.
+8. Añadir tests para aliases, export-from, require, import() y callbacks dinámicos.
+9. Revisar el cambio de dependencia CLI a `workspace:*` antes de preparar el siguiente commit.
 
 ## Alcance de producto confirmado
 

@@ -11,7 +11,8 @@
     "test": "corepack pnpm -r test",
     "typecheck": "corepack pnpm --filter @jotaese68/core typecheck && corepack pnpm --filter @jotaese68/core build && corepack pnpm --filter @jotaese68/ycf-cli typecheck",
     "ycf": "corepack pnpm build && node packages/cli/dist/index.js",
-    "pack:check": "corepack pnpm --filter @jotaese68/core exec npm pack --dry-run && corepack pnpm --filter @jotaese68/ycf-cli exec npm pack --dry-run"
+    "pack:check": "corepack pnpm --filter @jotaese68/core exec npm pack --dry-run && corepack pnpm --filter @jotaese68/ycf-cli exec npm pack --dry-run",
+    "demo:acceptance": "corepack pnpm build && node scripts/acceptance-demo.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
