@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, existsSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { mkdirSync, existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { Command } from 'commander';
-import { aiResidueFindings, audit, cleanupDevArtifacts, createCheckpoint, dependencyAudit, dependencyAuditPlan, impactAnalysis, latestCheckpoint, loadConfig, refactorPlan, releaseCheckLabel, releaseHeading, releaseReadiness, releaseReportLabel, rollbackToCheckpoint, understand, verificationPlan, verify, writeAuditReport, writeDependencyAuditReport, writeReleaseReport, writeUnfuckReport } from '@jotaese68/core';
+import { aiResidueFindings, audit, buildArchitecturalRefactorPlan, cleanupDevArtifacts, createCheckpoint, dependencyAudit, dependencyAuditPlan, executeRefactorPlan, impactAnalysis, latestCheckpoint, loadConfig, refactorPlan, releaseCheckLabel, releaseHeading, releaseReadiness, releaseReportLabel, rollbackToCheckpoint, understand, verificationPlan, verify, writeAuditReport, writeDependencyAuditReport, writeReleaseReport, writeUnfuckReport } from '@jotaese68/core';
 
 // pnpm forwards a standalone `--` to package scripts on some platforms.
 if (process.argv[2] === '--') process.argv.splice(2, 1);
@@ -218,7 +218,7 @@ program.command('init [target]').description('Create YCF configuration without o
   console.log(`Initialized YCF: ${configPath} (${language}, ${audience})`);
 });
 
-program.command('audit [target]').description('Audit a repository without modifying it.').option('--json', 'Emit the complete JSON report.').option('--language <language>', 'Response language: en, es, pt, fr, de, it, ar, or zh.').option('--audience <audience>', 'Explanation level: guided, technical, or professional.').action((target = '.', options) => {
+program.command('audit [target]').description('Audit a repository without modifying it.').option('--json', 'Emit the complete JSON report.').option('--ci', 'Fail when medium-risk findings are present.').option('--language <language>', 'Response language: en, es, pt, fr, de, it, ar, or zh.').option('--audience <audience>', 'Explanation level: guided, technical, or professional.').action((target = '.', options) => {
   const report = audit(target);
   const config = loadConfig(target);
   const language: Language = validLanguage(options.language) ? options.language : config.language;
@@ -236,7 +236,9 @@ program.command('audit [target]').description('Audit a repository without modify
   for (const finding of report.findings) console.log(`[${finding.severity}] ${finding.file}:${finding.lines.join(', ')} — ${guidedAdvice(finding, language, audience)}`);
   console.log(`FUCKED SCORE: ${report.score.fucked}%`);
   console.log(`HEALTH SCORE: ${report.score.health}/100`);
+  console.log(`Architecture: ${report.score.dimensions.architecture}/100 · Maintainability: ${report.score.dimensions.maintainability}/100 · Security: ${report.score.dimensions.security}/100 · Tests: ${report.score.dimensions.tests}/100 · Documentation: ${report.score.dimensions.documentation}/100`);
   console.log('Audit mode is read-only.');
+  if (options.ci && report.findings.some((finding) => finding.severity === 'medium')) process.exitCode = 1;
 });
 
 program.command('understand [target]').description('Map repository modules and local dependencies into .ycf reports.').option('--json', 'Emit the complete JSON report.').action((target = '.', options) => {
@@ -320,6 +322,78 @@ program.command('report [target]').description('Persist the current read-only au
   console.log(`Markdown: ${paths.markdownPath}`);
 });
 
+program.command('explain [target]').description('Write a plain-language architecture explanation without changing source code.').action((target = '.') => {
+  const report = understand(target);
+  const auditReport = audit(target);
+  const path = join(report.target, '.ycf', 'explain.md');
+  const entries = report.graph.nodes.filter((node) => node.entryPoint).map((node) => `- \`${node.file}\``).join('\n') || '- No static entry point candidate found.';
+  const risks = auditReport.findings.slice(0, 20).map((finding) => `- **${finding.ruleId}** — \`${finding.file}\`: ${finding.evidence}`).join('\n') || '- No findings.';
+  writeFileSync(path, `# YCF project explanation\n\n## What YCF found\n\n- Stacks: ${report.stacks.join(', ') || 'unknown'}\n- Source files: ${report.sourceFiles}\n- Modules: ${report.modules.length}\n- Local dependency edges: ${report.dependencies.length}\n\n## Entry points\n\n${entries}\n\n## Main risks\n\n${risks}\n\n## How to continue\n\nUse \`ycf map --html\` for the architecture view, \`ycf impact <module>\` before changing a module, and \`ycf verify\` after approved changes. Static analysis cannot prove dynamic loading, framework callbacks, or external consumers.\n`, 'utf8');
+  console.log(`Explanation written: ${path}`);
+});
+
+program.command('check [target]').description('Run a fast pre-commit quality gate without changing files.').option('--json', 'Emit the check result as JSON.').action((target = '.', options) => {
+  const report = audit(target);
+  const checks = verificationPlan(target);
+  const result = { target: report.target, passed: !report.findings.some((finding) => finding.severity === 'medium'), mediumFindings: report.findings.filter((finding) => finding.severity === 'medium').length, findings: report.findings.length, verification: checks.map((check) => ({ name: check.name, command: check.command, available: !check.output })) };
+  if (options.json) { console.log(JSON.stringify(result, null, 2)); if (!result.passed) process.exitCode = 1; return; }
+  console.log(`YCF check: ${result.passed ? 'PASS' : 'REVIEW REQUIRED'}`);
+  console.log(`Findings: ${result.findings} (${result.mediumFindings} medium-risk)`);
+  console.log(`Verification scripts detected: ${checks.filter((check) => !check.output).map((check) => check.name).join(', ') || 'none'}`);
+  if (!result.passed) process.exitCode = 1;
+});
+
+function relativeImport(fromFile: string, toFile: string): string {
+  const value = relative(resolve(fromFile, '..'), toFile).replaceAll('\\', '/');
+  return value.startsWith('.') ? value : `./${value}`;
+}
+
+function rewriteImportsForMove(target: string, source: string, destination: string, report: ReturnType<typeof understand>): string[] {
+  const sourceAbsolute = resolve(target, source);
+  const destinationAbsolute = resolve(target, destination);
+  const sourceContent = readFileSync(sourceAbsolute, 'utf8');
+  if (/(?:from|import|require\s*\()\s*["']\.[^"']+["']/.test(sourceContent)) throw new Error('Refusing to move a module with relative imports: update its internal paths explicitly first.');
+  const changed: string[] = [];
+  for (const module of report.modules) {
+    const file = resolve(target, module.path);
+    if (file === sourceAbsolute) continue;
+    const content = readFileSync(file, 'utf8');
+    const oldSpecifier = relativeImport(file, sourceAbsolute);
+    const newSpecifier = relativeImport(file, destinationAbsolute);
+    const withoutExtension = oldSpecifier.replace(/\.(?:[cm]?js|jsx|tsx?)$/i, '');
+    const patterns = [oldSpecifier, withoutExtension];
+    let updated = content;
+    for (const pattern of patterns) updated = updated.replace(new RegExp(`(["'])${pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(["'])`, 'g'), `$1${newSpecifier}$2`);
+    if (updated !== content) { writeFileSync(file, updated, 'utf8'); changed.push(module.path); }
+  }
+  return changed;
+}
+
+program.command('move <source> <destination> [target]').description('Move one module with import updates, checkpoint and verification.').option('--dry-run', 'Show the planned move without changing files.').option('--yes', 'Approve the move after reviewing the plan.').action((source, destination, target = '.', options) => {
+  const report = understand(target);
+  const sourcePath = resolve(report.target, source);
+  const destinationPath = resolve(report.target, destination);
+  if (!existsSync(sourcePath)) throw new Error(`Source module does not exist: ${source}`);
+  if (existsSync(destinationPath)) throw new Error(`Destination already exists: ${destination}`);
+  console.log(`Planned structural move: ${source} → ${destination}`);
+  console.log('YCF will update static import paths, create a checkpoint, verify, and rollback on failure.');
+  if (options.dryRun || !options.yes) { console.log('No files changed. Re-run with --yes after reviewing the plan.'); return; }
+  const checkpoint = createCheckpoint(target);
+  try {
+    mkdirSync(resolve(destinationPath, '..'), { recursive: true });
+    const changedImports = rewriteImportsForMove(report.target, source, destination, report);
+    renameSync(sourcePath, destinationPath);
+    const verification = verify(target);
+    if (!verification.passed) { rollbackToCheckpoint(target, checkpoint); console.error(`Verification failed. Restored checkpoint ${checkpoint.commit}.`); process.exitCode = 1; return; }
+    console.log(`Move complete. Updated imports in ${changedImports.length} file(s).`);
+    console.log(`Checkpoint retained: ${checkpoint.ref}`);
+    console.log(gitDiffSummary(target));
+  } catch (error) {
+    if (execFileSync('git', ['-C', resolve(target), 'status', '--porcelain'], { encoding: 'utf8' }).trim()) rollbackToCheckpoint(target, checkpoint);
+    throw error;
+  }
+});
+
 program.command('ai-residue [target]').description('Find AI/dev residue candidates without modifying code or attribution.').option('--json', 'Emit findings as JSON.').action((target = '.', options) => {
   const findings = aiResidueFindings(target);
   if (options.json) { console.log(JSON.stringify(findings, null, 2)); return; }
@@ -358,8 +432,18 @@ program.command('cleanup [target]').description('Remove parser-confirmed debug a
   console.log('Verification passed.');
 });
 
-program.command('unfuck [target]').description('Run YCF’s current safe pipeline: audit, checkpoint, cleanup, verify and report.').option('--dry-run', 'Show the safe changes YCF would make.').option('--yes', 'Confirm source-code changes after reviewing the plan.').action((target = '.', options) => {
+program.command('unfuck [target]').description('Run YCF’s safe pipeline and, with an approved plan, execute structural refactor blocks.').option('--dry-run', 'Show the safe changes YCF would make.').option('--yes', 'Confirm source-code changes after reviewing the plan.').option('--apply-plan <file>', 'Execute a reviewed .ycf architectural refactor plan.').action((target = '.', options) => {
   const startedAt = new Date().toISOString();
+  if (options.applyPlan) {
+    const plan = JSON.parse(readFileSync(resolve(target, options.applyPlan), 'utf8'));
+    const result = executeRefactorPlan(target, plan, { allowSupervised: Boolean(options.yes), fullVerify: true });
+    writeFileSync(join(resolve(target), '.ycf', 'refactor-execution.json'), JSON.stringify(result, null, 2), 'utf8');
+    console.log(`YCF unfuck structural execution: ${result.status}`);
+    console.log(`Verified: ${result.keptBlocks.join(', ') || 'none'}`);
+    console.log(`Rolled back: ${result.rolledBackBlocks.join(', ') || 'none'}`);
+    console.log(`Blocked/supervised: ${result.blockedBlocks.join(', ') || 'none'}`);
+    return;
+  }
   const before = audit(target);
   const planned = before.findings.filter((finding) => finding.ruleId === 'debug-statements' || finding.ruleId === 'debug-console' || finding.ruleId === 'unused-import').reduce((total, finding) => total + finding.lines.length, 0);
   if (options.dryRun || !options.yes) {
@@ -399,7 +483,36 @@ program.command('unfuck [target]').description('Run YCF’s current safe pipelin
   }
 });
 
-program.command('refactor [target]').description('Generate a supervised refactor plan without changing source code.').option('--dry-run', 'Explicitly confirm planning-only mode.').option('--json', 'Emit the full plan as JSON.').option('--language <language>', 'Response language: en, es, pt, fr, de, it, ar, or zh.').option('--audience <audience>', 'Explanation level: guided, technical, or professional.').action((target = '.', options) => {
+program.command('seniorize [target]').description('Run the complete quality pipeline: understand, audit, safe cleanup, refactor plan and verification.').option('--dry-run', 'Show all planned work without changing files.').option('--yes', 'Approve the safe execution block after reviewing the plan.').action((target = '.', options) => {
+  const before = audit(target);
+  understand(target);
+  const plan = refactorPlan(target);
+  const architectural = buildArchitecturalRefactorPlan(target);
+  const safe = before.findings.filter((finding) => finding.risk === 'auto').length;
+  console.log('YCF seniorize plan');
+  console.log(`FUCKED SCORE: ${before.score.fucked}%`);
+  console.log(`Safe cleanup candidates: ${safe}`);
+  console.log(`Structural recommendations: ${plan.plan.summary.total}`);
+  console.log(`Architectural blocks: ${architectural.blocks.length} (supervised candidates are not executed silently)`);
+  if (options.dryRun || !options.yes) { console.log('No files changed. Review the plan, then re-run with --yes to execute the safe block.'); return; }
+  const structural = executeRefactorPlan(target, architectural, { allowSupervised: false, fullVerify: true });
+  writeFileSync(join(resolve(target), '.ycf', 'refactor-execution.json'), JSON.stringify(structural, null, 2), 'utf8');
+  console.log(`Structural executor: ${structural.status}; verified ${structural.keptBlocks.length}, rolled back ${structural.rolledBackBlocks.length}, blocked ${structural.blockedBlocks.length}.`);
+  const checkpoint = createCheckpoint(target);
+  try {
+    const cleanup = safe ? cleanupDevArtifacts(target) : undefined;
+    const verification = verify(target);
+    if (!verification.passed) { rollbackToCheckpoint(target, checkpoint); console.error(`Verification failed. Restored checkpoint ${checkpoint.commit}.`); process.exitCode = 1; return; }
+    understand(target);
+    console.log(`Safe block complete. Changed ${cleanup?.changedFiles.length ?? 0} file(s).`);
+    console.log(`Structural recommendations remain supervised: ${plan.plan.summary.total}. Use ycf move --dry-run/--yes for explicit module moves.`);
+    console.log(`Checkpoint retained: ${checkpoint.ref}`);
+    console.log('Verification passed.');
+  } catch (error) { rollbackToCheckpoint(target, checkpoint); throw error; }
+});
+
+program.command('refactor [target]').description('Generate a supervised refactor plan without changing source code.').option('--dry-run', 'Explicitly confirm planning-only mode.').option('--json', 'Emit the full plan as JSON.').option('--architectural', 'Generate executable block plan with dependencies and safety classification.').option('--language <language>', 'Response language: en, es, pt, fr, de, it, ar, or zh.').option('--audience <audience>', 'Explanation level: guided, technical, or professional.').action((target = '.', options) => {
+  if (options.architectural) { const architectural = buildArchitecturalRefactorPlan(target); console.log(options.json ? JSON.stringify(architectural, null, 2) : `Architectural plan: ${join(resolve(target), '.ycf', 'architectural-refactor-plan.json')} (${architectural.blocks.length} block(s))`); return; }
   const config = loadConfig(target);
   const language: Language = validLanguage(options.language) ? options.language : config.language;
   const audience: Audience = validAudience(options.audience) ? options.audience : config.audience;
