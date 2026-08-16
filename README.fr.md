@@ -31,8 +31,8 @@ Le vibe coding est amusant. Nettoyer après l'est beaucoup moins.
 ## Commencez ici
 
 ```bash
-npx your-code-is-fucked audit
-npm install -g your-code-is-fucked
+npx ycf-unfuck audit
+npm install -g ycf-unfuck
 cd mon-projet
 ycf audit
 ycf map
