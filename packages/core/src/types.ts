@@ -57,6 +57,8 @@ export interface CleanupReport {
 }
 export interface UnfuckReport {
   target: string; startedAt: string; completedAt: string; status: 'no-changes' | 'verified' | 'rolled-back'; before: AuditReport; after: AuditReport;
+  executionMode?: 'dry-run' | 'guided' | 'batch';
+  steps?: Array<{ name: 'plan' | 'checkpoint' | 'cleanup' | 'verify' | 'report'; status: 'planned' | 'awaiting-approval' | 'completed' | 'skipped' | 'rolled-back'; detail?: string }>;
   checkpoint?: GitCheckpoint; cleanup?: CleanupReport; verification?: VerificationReport;
 }
 export interface RefactorRecommendation {

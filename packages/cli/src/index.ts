@@ -358,39 +358,70 @@ program.command('cleanup [target]').description('Remove parser-confirmed debug a
   console.log('Verification passed.');
 });
 
-program.command('unfuck [target]').description('Run YCF’s current safe pipeline: audit, checkpoint, cleanup, verify and report.').option('--dry-run', 'Show the safe changes YCF would make.').option('--yes', 'Confirm source-code changes after reviewing the plan.').action((target = '.', options) => {
+program.command('unfuck [target]').description('Run YCF’s safe pipeline with a guided or batch execution policy.').option('--dry-run', 'Show the safe changes YCF would make without writing source or a checkpoint.').option('--guided', 'Approve the checkpoint, cleanup and verification steps interactively.').option('--yes', 'Approve the complete safe pipeline after reviewing the plan.').action(async (target = '.', options) => {
   const startedAt = new Date().toISOString();
   const before = audit(target);
   const planned = before.findings.filter((finding) => finding.ruleId === 'debug-statements' || finding.ruleId === 'debug-console' || finding.ruleId === 'unused-import').reduce((total, finding) => total + finding.lines.length, 0);
-  if (options.dryRun || !options.yes) {
+  if (options.guided && options.yes) throw new Error('Choose one execution policy: --guided or --yes.');
+  const executionMode = options.guided ? 'guided' as const : options.yes ? 'batch' as const : 'dry-run' as const;
+  const steps: Array<{ name: 'plan' | 'checkpoint' | 'cleanup' | 'verify' | 'report'; status: 'planned' | 'awaiting-approval' | 'completed' | 'skipped' | 'rolled-back'; detail?: string }> = [
+    { name: 'plan' as const, status: 'completed' as const, detail: `${planned} parser-confirmed safe artifact(s) available.` },
+    { name: 'checkpoint' as const, status: executionMode === 'dry-run' ? 'skipped' as const : 'planned' as const },
+    { name: 'cleanup' as const, status: executionMode === 'dry-run' ? 'skipped' as const : 'planned' as const },
+    { name: 'verify' as const, status: executionMode === 'dry-run' ? 'skipped' as const : 'planned' as const },
+    { name: 'report' as const, status: 'planned' as const }
+  ];
+  if (executionMode === 'dry-run') {
     console.log('YCF unfuck plan');
     console.log(`FUCKED SCORE: ${before.score.fucked}%`);
     console.log(`Safe changes available: ${planned} parser-confirmed safe artifact(s).`);
-    console.log('No files changed. Re-run with --yes to execute the safe pipeline.');
+    console.log('No files changed. Re-run with --guided to approve each step or --yes to approve the complete safe pipeline.');
+    const paths = writeUnfuckReport(target, { target: before.target, startedAt, completedAt: new Date().toISOString(), status: 'no-changes', executionMode, steps, before, after: before });
+    console.log(`Plan report: ${paths.markdownPath}`);
     return;
   }
   if (!planned) {
     understand(target);
-    const report = { target: before.target, startedAt, completedAt: new Date().toISOString(), status: 'no-changes' as const, before, after: before };
+    const report = { target: before.target, startedAt, completedAt: new Date().toISOString(), status: 'no-changes' as const, executionMode, steps, before, after: before };
     const paths = writeUnfuckReport(target, report);
     console.log(`No allowlisted safe changes found. Report: ${paths.markdownPath}`);
     return;
   }
+  if (executionMode === 'guided' && !input.isTTY) throw new Error('--guided requires an interactive terminal. Use --yes in CI or scripts.');
   const checkpoint = createCheckpoint(target);
+  steps[1].status = 'completed';
+  if (executionMode === 'guided' && (await choose('Create checkpoint completed. Apply the approved safe cleanup?', [{ value: 'yes', label: 'Yes, apply cleanup' }, { value: 'no', label: 'No, stop safely' }], 'no')) === 'no') {
+    steps[2].status = 'skipped'; steps[3].status = 'skipped'; steps[4].status = 'completed';
+    const paths = writeUnfuckReport(target, { target: before.target, startedAt, completedAt: new Date().toISOString(), status: 'no-changes', executionMode, steps, before, after: before, checkpoint });
+    console.log(`Stopped before source changes. Report: ${paths.markdownPath}`);
+    return;
+  }
   try {
     understand(target);
     const cleanup = cleanupDevArtifacts(target);
+    steps[2].status = 'completed';
+    if (executionMode === 'guided' && (await choose('Cleanup completed. Run verification now?', [{ value: 'yes', label: 'Yes, verify changes' }, { value: 'no', label: 'No, rollback cleanup' }], 'no')) === 'no') {
+      rollbackToCheckpoint(target, checkpoint);
+      steps[3].status = 'rolled-back'; steps[4].status = 'completed';
+      const after = audit(target);
+      const paths = writeUnfuckReport(target, { target: before.target, startedAt, completedAt: new Date().toISOString(), status: 'rolled-back', executionMode, steps, before, after, checkpoint, cleanup });
+      console.log(`Cleanup rolled back before verification. Report: ${paths.markdownPath}`);
+      return;
+    }
     const verification = verify(target);
+    steps[3].status = verification.passed ? 'completed' : 'rolled-back';
     if (!verification.passed) {
       rollbackToCheckpoint(target, checkpoint);
       const after = audit(target);
-      const paths = writeUnfuckReport(target, { target: before.target, startedAt, completedAt: new Date().toISOString(), status: 'rolled-back', before, after, checkpoint, cleanup, verification });
+      steps[4].status = 'completed';
+      const paths = writeUnfuckReport(target, { target: before.target, startedAt, completedAt: new Date().toISOString(), status: 'rolled-back', executionMode, steps, before, after, checkpoint, cleanup, verification });
       console.error(`Verification failed; restored ${checkpoint.commit}. Report: ${paths.markdownPath}`);
       process.exitCode = 1;
       return;
     }
     const after = audit(target);
-    const paths = writeUnfuckReport(target, { target: before.target, startedAt, completedAt: new Date().toISOString(), status: 'verified', before, after, checkpoint, cleanup, verification });
+    steps[4].status = 'completed';
+    const paths = writeUnfuckReport(target, { target: before.target, startedAt, completedAt: new Date().toISOString(), status: 'verified', executionMode, steps, before, after, checkpoint, cleanup, verification });
     console.log(`YCF unfuck complete: ${before.score.fucked}% → ${after.score.fucked}%.`);
     console.log(`Removed ${cleanup.removedDebugStatements} debugger statement(s), ${cleanup.removedDebugConsoleCalls} literal debug console call(s), and ${cleanup.removedUnusedImports} unused named import(s). Report: ${paths.markdownPath}`);
   } catch (error) {
