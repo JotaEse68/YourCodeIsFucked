@@ -22,7 +22,8 @@ export function writeUnfuckReport(target: string, report: UnfuckReport): { jsonP
   const markdownPath = join(output, 'unfuck.md');
   writeFileSync(jsonPath, JSON.stringify(report, null, 2), 'utf8');
   const verification = report.verification ? (report.verification.passed ? 'PASS' : 'FAIL') : 'NOT RUN';
-  writeFileSync(markdownPath, `# YCF unfuck report\n\nStatus: **${report.status.toUpperCase()}**\n\n- Before FUCKED SCORE: ${report.before.score.fucked}%\n- After FUCKED SCORE: ${report.after.score.fucked}%\n- Before HEALTH SCORE: ${report.before.score.health}/100\n- After HEALTH SCORE: ${report.after.score.health}/100\n- Debugger statements removed: ${report.cleanup?.removedDebugStatements ?? 0}\n- Literal debug console calls removed: ${report.cleanup?.removedDebugConsoleCalls ?? 0}\n- Unused named imports removed: ${report.cleanup?.removedUnusedImports ?? 0}\n- Verification: ${verification}\n- Checkpoint: ${report.checkpoint?.commit ?? 'not created'}\n`, 'utf8');
+  const steps = report.steps?.length ? report.steps.map((step) => `- ${step.name}: **${step.status}**${step.detail ? ` — ${step.detail}` : ''}`).join('\n') : '- No step log recorded.';
+  writeFileSync(markdownPath, `# YCF unfuck report\n\nStatus: **${report.status.toUpperCase()}**\n\n- Execution mode: **${report.executionMode ?? 'batch'}**\n- Before FUCKED SCORE: ${report.before.score.fucked}%\n- After FUCKED SCORE: ${report.after.score.fucked}%\n- Before HEALTH SCORE: ${report.before.score.health}/100\n- After HEALTH SCORE: ${report.after.score.health}/100\n- Debugger statements removed: ${report.cleanup?.removedDebugStatements ?? 0}\n- Literal debug console calls removed: ${report.cleanup?.removedDebugConsoleCalls ?? 0}\n- Unused named imports removed: ${report.cleanup?.removedUnusedImports ?? 0}\n- Verification: ${verification}\n- Checkpoint: ${report.checkpoint?.commit ?? 'not created'}\n\n## Steps\n\n${steps}\n`, 'utf8');
   return { jsonPath, markdownPath };
 }
 
