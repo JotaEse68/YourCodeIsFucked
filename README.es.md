@@ -185,9 +185,12 @@ Los adaptadores para Claude Code, Cursor y GitHub Copilot están en [`integratio
 
 La skill incluye referencias específicas para TypeScript, React, PHP y WordPress.
 
-### Publicación automática en npm
+### Publicación en npm
 
-El repositorio incluye el flujo de Trusted Publishing basado en tags en [`.github/workflows/publish.yml`](.github/workflows/publish.yml). Configura GitHub Actions como publisher de confianza para los dos paquetes en npm una sola vez; después, al crear un tag de release, GitHub podrá publicar con OIDC sin reutilizar contraseñas ni tokens.
+La publicación automática no forma parte del producto central. Cuando llegue la fase
+de instalación pública, se hará una publicación manual, explícita y verificable. El
+paquete seguirá preparado para que cualquiera pueda instalar YCF sin cuentas, cloud ni
+configuración empresarial.
 
 ## Hazlo comprensible para tu equipo
 
