@@ -83,6 +83,9 @@ ycf impact src/checkout.ts .
 # Genera el cockpit visual local.
 ycf cockpit .
 
+# Sin argumentos: genera y abre el cockpit local en el navegador.
+ycf
+
 # Mira el plan antes de permitir cambios.
 ycf unfuck --dry-run
 ```

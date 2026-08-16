@@ -16,6 +16,8 @@ npm install -g @jotaese68/ycf
 
 Then run `ycf init` in a project to choose a language and explanation level. YCF starts with read-only diagnostics and never makes sensitive changes automatically.
 
+Run `ycf` with no arguments to generate and open the local read-only cockpit in your browser. Use `ycf cockpit --no-open` when you only want the HTML file.
+
 Version `0.1.0` is released only after the maintainer intentionally runs the npm publication command.
 
 ## Execution policies
