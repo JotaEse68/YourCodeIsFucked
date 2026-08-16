@@ -19,6 +19,7 @@ Fecha: 2026-08-16
 - Undo explícito por operación y rollback aislado por bloque.
 - Verificación FAST/FULL y clasificación `SAFE`, `SUPERVISED` y `BLOCKED`.
 - Integración inicial en `unfuck` y `seniorize`.
+- Demo externa reproducible con fixture Git, movimiento real, actualización de imports, tests/build, fallo controlado, rollback aislado e informe antes/después.
 
 ## PARTIAL
 
@@ -31,15 +32,13 @@ Fecha: 2026-08-16
 
 - Extracción AST con preservación completa de imports, exports, tipos, comentarios, scope y tests.
 - Arquitectura BEFORE/AFTER en el informe final.
-- Demo externa reproducible con fixture real, movimiento, tests/build, fallo controlado y rollback visible.
 
 ## ACTION
 
 1. Implementar checkpoints Git persistentes por bloque.
 2. Reemplazar extracción por rangos por transformación AST TypeScript.
 3. Añadir tests de resolución y callbacks dinámicos.
-4. Crear la demo externa de aceptación.
-5. Actualizar README y marketing en un commit separado, solo con claims demostrados.
+4. Actualizar README y marketing en un commit separado, solo con claims demostrados.
 
 ## Regla de publicación
 
