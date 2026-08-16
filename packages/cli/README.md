@@ -5,13 +5,13 @@ YCF is a safe, guided command-line tool to understand, audit, and improve a code
 Try it without installing anything:
 
 ```bash
-npx ycf-unfuck audit
+npx @jotaese68/ycf audit
 ```
 
 Or install it globally:
 
 ```bash
-npm install -g ycf-unfuck
+npm install -g @jotaese68/ycf
 ```
 
 Then run `ycf init` in a project to choose a language and explanation level. YCF starts with read-only diagnostics and never makes sensitive changes automatically.

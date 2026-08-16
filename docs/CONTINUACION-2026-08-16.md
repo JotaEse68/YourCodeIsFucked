@@ -100,8 +100,8 @@ producto central y solo volverán si un problema real demuestra que hacen falta.
 ```powershell
 corepack pnpm --filter @jotaese68/core test
 corepack pnpm --filter @jotaese68/core typecheck
-corepack pnpm --filter ycf-unfuck typecheck
-corepack pnpm --filter ycf-unfuck build
+corepack pnpm --filter @jotaese68/ycf typecheck
+corepack pnpm --filter @jotaese68/ycf build
 ```
 
 ## Punto exacto para retomar
