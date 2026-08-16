@@ -4,11 +4,23 @@ import { mkdirSync, existsSync, readFileSync, renameSync, writeFileSync } from '
 import { join, relative, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
+import { pathToFileURL } from 'node:url';
 import { Command } from 'commander';
 import { aiResidueFindings, audit, buildArchitecturalRefactorPlan, cleanupDevArtifacts, createCheckpoint, dependencyAudit, dependencyAuditPlan, executeRefactorPlan, impactAnalysis, latestCheckpoint, loadConfig, refactorPlan, releaseCheckLabel, releaseHeading, releaseReadiness, releaseReportLabel, rollbackToCheckpoint, understand, verificationPlan, verify, writeAuditReport, writeDependencyAuditReport, writeReleaseReport, writeUnfuckReport } from '@jotaese68/core';
 
 // pnpm forwards a standalone `--` to package scripts on some platforms.
 if (process.argv[2] === '--') process.argv.splice(2, 1);
+if (process.argv.length === 2) process.argv.push('cockpit');
+
+function openBrowser(file: string): boolean {
+  const url = pathToFileURL(file).href;
+  try {
+    if (process.platform === 'win32') execFileSync('cmd', ['/c', 'start', '', url], { stdio: 'ignore' });
+    else if (process.platform === 'darwin') execFileSync('open', [url], { stdio: 'ignore' });
+    else execFileSync('xdg-open', [url], { stdio: 'ignore' });
+    return true;
+  } catch { return false; }
+}
 
 const defaultConfig = `version: 1\n\nmode: balanced\n\nsafety:\n  require_git: true\n  checkpoints: true\n  protect_public_api: true\n  protect_database_schema: true\n\nignore:\n  - node_modules\n  - vendor\n  - dist\n  - build\n  - .git\n`;
 
@@ -287,13 +299,14 @@ program.command('map [target]').description('Generate and summarize the reposito
   if (options.html) { const htmlPath = join(report.target, '.ycf', 'architecture.html'); writeFileSync(htmlPath, architectureHtml(report), 'utf8'); console.log(`Visual map: ${htmlPath}`); }
 });
 
-program.command('cockpit [target]').description('Write a self-contained visual audit and impact cockpit.').action((target = '.') => {
+program.command('cockpit [target]').description('Write and open a self-contained visual audit and impact cockpit.').option('--no-open', 'Write the cockpit without opening a browser.').action((target = '.', options) => {
   const report = understand(target);
   const auditReport = audit(target);
   const cockpitPath = join(report.target, '.ycf', 'cockpit.html');
   writeFileSync(cockpitPath, cockpitHtml(report, auditReport, verificationPlan(report.target)), 'utf8');
   console.log('YCF — cockpit ready.');
-  console.log(`Open this file in your browser: ${cockpitPath}`);
+  if (options.open !== false && openBrowser(cockpitPath)) console.log(`Opened in your browser: ${cockpitPath}`);
+  else console.log(`Open this file in your browser: ${cockpitPath}`);
   console.log('Read-only: it does not modify source files or start a server.');
 });
 
