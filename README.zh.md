@@ -31,8 +31,8 @@ Vibe coding 很有趣。事后清理并不有趣。
 ## 从这里开始
 
 ```bash
-npx ycf-unfuck audit
-npm install -g ycf-unfuck
+npx @jotaese68/ycf audit
+npm install -g @jotaese68/ycf
 cd my-project
 ycf audit
 ycf map

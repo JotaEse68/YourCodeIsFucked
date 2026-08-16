@@ -31,8 +31,8 @@ YCF أداة CLI مجانية ومفتوحة المصدر لفهم قاعدة ا
 ## ابدأ هنا
 
 ```bash
-npx ycf-unfuck audit
-npm install -g ycf-unfuck
+npx @jotaese68/ycf audit
+npm install -g @jotaese68/ycf
 cd my-project
 ycf audit
 ycf map

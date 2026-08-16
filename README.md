@@ -70,10 +70,10 @@ We care whether it's clear, maintainable and safe to change.
 ## So... how fucked is your code?
 
 ```bash
-npx ycf-unfuck audit
+npx @jotaese68/ycf audit
 
 # O instala el comando corto para usarlo siempre
-npm install -g ycf-unfuck
+npm install -g @jotaese68/ycf
 cd your-project
 ycf audit
 ```
