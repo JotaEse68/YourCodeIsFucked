@@ -67,7 +67,10 @@ Cada auditoría calcula cinco dimensiones deterministas: **Arquitectura**, **Man
 ## Empieza aquí
 
 ```bash
-npm install -g @jotaese68/ycf-cli
+npx your-code-is-fucked audit
+
+# O instala el comando corto para usarlo siempre
+npm install -g your-code-is-fucked
 cd mi-proyecto
 
 # Primero mira. YCF no modifica el código fuente.

@@ -31,7 +31,8 @@ Le vibe coding est amusant. Nettoyer après l'est beaucoup moins.
 ## Commencez ici
 
 ```bash
-npm install -g @jotaese68/ycf-cli
+npx your-code-is-fucked audit
+npm install -g your-code-is-fucked
 cd mon-projet
 ycf audit
 ycf map
