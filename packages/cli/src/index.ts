@@ -15,7 +15,18 @@ if (process.argv.length === 2) process.argv.push('cockpit');
 function openBrowser(file: string): boolean {
   const url = pathToFileURL(file).href;
   try {
-    if (process.platform === 'win32') execFileSync('cmd', ['/c', 'start', '', url], { stdio: 'ignore' });
+    if (process.platform === 'win32') {
+      // Windows may associate .html with Notepad. Prefer an installed browser
+      // explicitly, then fall back to the user's default handler.
+      for (const browser of ['msedge.exe', 'chrome.exe', 'firefox.exe']) {
+        try {
+          execFileSync('where.exe', [browser], { stdio: 'ignore' });
+          execFileSync('cmd', ['/c', 'start', '', browser, url], { stdio: 'ignore' });
+          return true;
+        } catch { /* try the next browser */ }
+      }
+      execFileSync('cmd', ['/c', 'start', '', url], { stdio: 'ignore' });
+    }
     else if (process.platform === 'darwin') execFileSync('open', [url], { stdio: 'ignore' });
     else execFileSync('xdg-open', [url], { stdio: 'ignore' });
     return true;
