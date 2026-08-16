@@ -34,6 +34,16 @@ Claude Code · Codex · Cursor · Copilot · Gemini · Lovable · Bolt · Tus pr
 
 YCF es una CLI gratuita y open source para entender un proyecto, encontrar problemas de ingeniería medibles, limpiar residuos confirmados de forma segura, planificar mejoras estructurales y comprobar que no se ha roto nada. Sirve al vibecoder con una gran idea, al senior con seis ventanas de agentes abiertas y al equipo que necesita quality gates antes de publicar.
 
+## La promesa
+
+YCF debe ser:
+
+- Instalable en un minuto.
+- Útil en cinco minutos.
+- Seguro para un proyecto real.
+- Memorable cuando muestra los problemas.
+- Profesional cuando ejecuta los cambios.
+
 El vibe coding es divertido. Limpiar después no.
 
 YCF no detecta quién escribió tu código. Detecta si está jodido.
@@ -189,6 +199,8 @@ ycf audit --audience professional
 ```
 
 El motor no cambia. Solo cambia la explicación: guía clara para quien aprende, detalle técnico para desarrolladores o lenguaje profesional para revisiones y CI.
+
+Los idiomas sirven para que el diagnóstico se entienda, no para traducir el código ni cambiar las reglas. `guided` habla como un compañero que te explica qué significa el problema y por qué no conviene borrarlo a ciegas; `technical` conserva el detalle para quien va a tocar el código; `professional` prepara mensajes compactos para revisiones y quality gates. Cuando una regla todavía no tiene un texto específico en un idioma, YCF mantiene la evidencia y usa una explicación general traducida en vez de inventarse una certeza.
 
 ## Roadmap
 
