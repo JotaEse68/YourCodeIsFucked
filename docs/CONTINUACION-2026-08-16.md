@@ -92,7 +92,7 @@ producto central y solo volverán si un problema real demuestra que hacen falta.
 - No mezclar documentación, executor y demo en un único commit o publicación.
 - README y marketing se actualizarán en un bloque separado, después de validar claims reales.
 - No añadir badges, PR comments, cloud ni monetización.
-- No publicar npm.
+- No automatizar ni ejecutar una publicación npm sin revisar el paquete y aprobar el release.
 - No hacer push sin revisar y aprobar el bloque completo.
 
 ## Comandos de comprobación
@@ -100,8 +100,8 @@ producto central y solo volverán si un problema real demuestra que hacen falta.
 ```powershell
 corepack pnpm --filter @jotaese68/core test
 corepack pnpm --filter @jotaese68/core typecheck
-corepack pnpm --filter @jotaese68/ycf-cli typecheck
-corepack pnpm --filter @jotaese68/ycf-cli build
+corepack pnpm --filter your-code-is-fucked typecheck
+corepack pnpm --filter your-code-is-fucked build
 ```
 
 ## Punto exacto para retomar
