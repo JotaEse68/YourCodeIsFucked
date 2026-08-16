@@ -43,6 +43,16 @@ El vibe coding es divertido. Limpiar después no.
 
 YCF es la capa de calidad para el desarrollo asistido por IA: entiende tu codebase, encuentra la deuda, propone el arreglo, verifica que nada se rompa y deja evidencia.
 
+## The promise
+
+YCF should be:
+
+- Installable in one minute.
+- Useful in five minutes.
+- Safe on a real project.
+- Memorable when it shows you the problems.
+- Professional when it executes the changes.
+
 ## Built with AI? Built by humans? Mixed nightmare?
 
 Maybe you wrote everything yourself.
