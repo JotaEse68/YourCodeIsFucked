@@ -1,7 +1,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { readdirSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { createCheckpoint } from './git.js';
+import { beginCheckpointJournal, updateBlockCheckpoint } from './refactor-checkpoints.js';
 import { verificationPlan, verify } from './verify.js';
 import type { ArchitecturalRefactorPlan, RefactorBlock, RefactorExecutionReport, OperationRecord, RollbackEvent } from './refactor-types.js';
 import { applyRefactorOperation, type AppliedOperation } from './refactor-operations.js';
@@ -18,19 +18,20 @@ function runVerification(target: string, block: RefactorBlock, full: boolean): R
 
 export function executeRefactorPlan(target: string, plan: ArchitecturalRefactorPlan, options: { allowSupervised?: boolean; fullVerify?: boolean; createGitCheckpoint?: boolean } = {}): RefactorExecutionReport {
   const startedAt = new Date().toISOString(); const root = resolve(target); const beforeFiles = sourceSnapshot(root); const keptBlocks: string[] = []; const rolledBackBlocks: string[] = []; const blockedBlocks: string[] = []; const operationLog: OperationRecord[] = []; const rollbackEvents: RollbackEvent[] = [];
-  if (options.createGitCheckpoint !== false) { try { createCheckpoint(target); } catch { /* A working-tree checkpoint is represented by each operation undo journal. */ } }
+  const checkpoints = options.createGitCheckpoint === false ? undefined : beginCheckpointJournal(target, plan.blocks.map((block) => block.id));
   for (const block of plan.blocks) {
-    if (!dependencyReady(block, plan.blocks)) { block.status = 'BLOCKED'; block.result = { changedFiles: [], diffSummary: '', verificationPassed: false, error: `Dependencies not verified: ${block.dependencies.join(', ')}` }; blockedBlocks.push(block.id); continue; }
-    if (block.mode === 'BLOCKED' || (block.mode === 'SUPERVISED' && !options.allowSupervised)) { block.status = block.mode === 'BLOCKED' ? 'BLOCKED' : 'SUPERVISED'; block.result = { changedFiles: [], diffSummary: '', verificationPassed: false, error: block.mode === 'BLOCKED' ? 'Static safety analysis blocked this operation.' : 'Requires explicit supervised approval.' }; blockedBlocks.push(block.id); continue; }
+    if (!dependencyReady(block, plan.blocks)) { block.status = 'BLOCKED'; block.result = { changedFiles: [], diffSummary: '', verificationPassed: false, error: `Dependencies not verified: ${block.dependencies.join(', ')}` }; blockedBlocks.push(block.id); updateBlockCheckpoint(checkpoints, block.id, 'BLOCKED', { error: block.result.error }); continue; }
+    if (block.mode === 'BLOCKED' || (block.mode === 'SUPERVISED' && !options.allowSupervised)) { block.status = block.mode === 'BLOCKED' ? 'BLOCKED' : 'SUPERVISED'; block.result = { changedFiles: [], diffSummary: '', verificationPassed: false, error: block.mode === 'BLOCKED' ? 'Static safety analysis blocked this operation.' : 'Requires explicit supervised approval.' }; blockedBlocks.push(block.id); updateBlockCheckpoint(checkpoints, block.id, 'BLOCKED', { error: block.result.error }); continue; }
     block.status = 'RUNNING'; const applied: AppliedOperation[] = []; const changed = new Set<string>();
+    updateBlockCheckpoint(checkpoints, block.id, 'RUNNING');
     try {
       for (const operation of block.operations) { const result = applyRefactorOperation(target, operation); applied.push(result); result.changedFiles.forEach((file) => changed.add(file)); operationLog.push({ operationId: result.operationId, kind: operation.kind, changedFiles: result.changedFiles, description: result.description, undone: false }); }
       const verification = runVerification(target, block, options.fullVerify === true); block.result = { changedFiles: [...changed], diffSummary: diffSummary(target), verificationPassed: verification.passed, verification };
       if (!verification.passed) throw new Error('Verification failed.');
-      block.status = 'VERIFIED'; keptBlocks.push(block.id);
+      block.status = 'VERIFIED'; keptBlocks.push(block.id); updateBlockCheckpoint(checkpoints, block.id, 'VERIFIED', { changedFiles: [...changed], operationIds: applied.map((operation) => operation.operationId) });
     } catch (error) {
       const undone: string[] = []; for (const operation of [...applied].reverse()) { try { operation.undo(); undone.push(operation.operationId); const record = operationLog.find((item) => item.operationId === operation.operationId); if (record) record.undone = true; } catch { /* preserve the original failure and report the limitation */ } }
-      block.status = 'ROLLED_BACK'; block.result = { changedFiles: [...changed], diffSummary: '', verificationPassed: false, error: error instanceof Error ? error.message : String(error) }; rolledBackBlocks.push(block.id); rollbackEvents.push({ blockId: block.id, reason: block.result.error ?? 'unknown', operationsUndone: undone, isolated: true });
+      block.status = 'ROLLED_BACK'; block.result = { changedFiles: [...changed], diffSummary: '', verificationPassed: false, error: error instanceof Error ? error.message : String(error) }; rolledBackBlocks.push(block.id); updateBlockCheckpoint(checkpoints, block.id, 'ROLLED_BACK', { changedFiles: [...changed], operationIds: applied.map((operation) => operation.operationId), error: block.result.error }); rollbackEvents.push({ blockId: block.id, reason: block.result.error ?? 'unknown', operationsUndone: undone, isolated: true });
     }
   }
   const status = rolledBackBlocks.length || blockedBlocks.length ? (keptBlocks.length ? 'partial' : 'failed') : 'completed';
