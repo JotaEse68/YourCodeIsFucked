@@ -1,8 +1,10 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { executeRefactorPlan } from './refactor-executor.js';
+import { beginCheckpointJournal, readCheckpointJournal, updateBlockCheckpoint } from './refactor-checkpoints.js';
 import type { ArchitecturalRefactorPlan, RefactorBlock } from './refactor-types.js';
 
 const block = (id: string, operations: RefactorBlock['operations'], dependencies: string[] = []): RefactorBlock => ({ id, type: 'DEMO', goal: id, reason: 'reproducible executor test', risk: 'LOW', confidence: 99, mode: 'SAFE', files: [], dependencies, affectedModules: [], preconditions: [], operations, validation: [], rollback: [{ kind: 'undo-operation', description: 'inverse operation journal' }], status: 'PLANNED' });
@@ -44,5 +46,25 @@ describe('architectural refactor executor', () => {
     const result = executeRefactorPlan(root, plan, { createGitCheckpoint: false });
     expect(result.keptBlocks).toEqual(['RF-CONTEXT']); const extracted = readFileSync(join(root, 'greet.ts'), 'utf8');
     expect(extracted).toContain('import { suffix } from "./helper";'); expect(extracted).toContain('Keep this explanation'); expect(extracted).toContain('export function greet');
+  });
+
+  it('persists one Git checkpoint record per block', () => {
+    const root = mkdtempSync(join(tmpdir(), 'ycf-checkpoints-')); const source = join(root, 'source.ts'); writeFileSync(source, 'export const value = 1;\n');
+    const runGit = (args: string[]) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8' });
+    runGit(['init', '-q']); runGit(['config', 'user.email', 'ycf-test@example.com']); runGit(['config', 'user.name', 'YCF Test']); runGit(['add', 'source.ts']); runGit(['commit', '-qm', 'initial']);
+    const plan: ArchitecturalRefactorPlan = { version: 2, target: root, generatedAt: new Date().toISOString(), sourceFindings: [], summary: { auto: 0, safeRefactor: 0, supervised: 0, architectural: 0, blocked: 0 }, blocks: [
+      block('RF-GIT-OK', [{ id: 'op-create', kind: 'CREATE', description: 'create verified file', file: 'verified.ts', content: 'export const verified = true;\n' }]),
+      block('RF-GIT-FAIL', [{ id: 'op-missing', kind: 'RENAME', description: 'forced failure', source: 'missing.ts', destination: 'never.ts', updateImports: true }])
+    ] };
+    const result = executeRefactorPlan(root, plan, { fullVerify: true }); const journal = readCheckpointJournal(root);
+    expect(result.keptBlocks).toEqual(['RF-GIT-OK']); expect(result.rolledBackBlocks).toEqual(['RF-GIT-FAIL']); expect(journal?.blocks.map((item) => item.status)).toEqual(['VERIFIED', 'ROLLED_BACK']); expect(journal?.blocks.every((item) => item.ref && item.commit)).toBe(true);
+  });
+
+  it('marks an interrupted RUNNING block as pending in the durable journal', () => {
+    const root = mkdtempSync(join(tmpdir(), 'ycf-interrupted-')); writeFileSync(join(root, 'source.ts'), 'export const value = 1;\n'); const runGit = (args: string[]) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8' });
+    runGit(['init', '-q']); runGit(['config', 'user.email', 'ycf-test@example.com']); runGit(['config', 'user.name', 'YCF Test']); runGit(['add', 'source.ts']); runGit(['commit', '-qm', 'initial']);
+    const first = beginCheckpointJournal(root, ['RF-INTERRUPTED']); expect(first).toBeDefined(); updateBlockCheckpoint(first, 'RF-INTERRUPTED', 'RUNNING');
+    const second = beginCheckpointJournal(root, ['RF-NEW']); expect(second).toBeDefined(); const archived = JSON.parse(readFileSync(join(root, '.ycf', 'refactor-checkpoints', `${first?.journal.runId}.json`), 'utf8')) as { blocks: Array<{ status: string; error?: string }> };
+    expect(archived.blocks[0]).toMatchObject({ status: 'PENDING', error: 'Execution interrupted before the block reached a final state.' });
   });
 });

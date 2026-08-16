@@ -14,6 +14,7 @@ import { duplicateFindings, duplicateGroups } from './duplicates.js';
 export type { ArchitecturalRefactorPlan, RefactorBlock, RefactorExecutionReport, RefactorOperation, RefactorBlockStatus, RiskLevel, SafetyMode, RefactorOperationKind, OperationRecord, RollbackEvent, RollbackStep, VerificationStep } from './refactor-types.js';
 export { applyRefactorOperation } from './refactor-operations.js';
 export { executeRefactorPlan } from './refactor-executor.js';
+export { readCheckpointJournal } from './refactor-checkpoints.js';
 export { buildArchitecturalRefactorPlan } from './refactor-planner.js';
 import type { AuditReport, CleanupReport, DuplicateGroup, Finding, ImpactReport, RefactorPlan, Stack, UnderstandReport, YcfConfig } from './types.js';
 export type { AuditReport, CleanupReport, DependencyAuditReport, DependencyVulnerability, DuplicateGroup, Finding, FindingRisk, GitCheckpoint, GitState, ImpactReport, RefactorPlan, RefactorRecommendation, ReleaseCheck, ReleaseReport, Stack, UnderstandReport, UnfuckReport, VerificationCheck, VerificationReport, YcfConfig } from './types.js';
