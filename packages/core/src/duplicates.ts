@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
-import { relative } from 'node:path';
+import { extname, relative } from 'node:path';
+import ts from 'typescript';
 import type { DuplicateGroup, Finding } from './types.js';
 
 type DuplicateOccurrence = DuplicateGroup['occurrences'][number];
@@ -20,6 +21,52 @@ function lexicalSimilarity(left: string, right: string): number {
   const rightTokens = new Set(right.match(/[A-Za-z_$][\w$]*|\d+|[^\s]/g) ?? []);
   const shared = [...leftTokens].filter((token) => rightTokens.has(token)).length;
   return shared / new Set([...leftTokens, ...rightTokens]).size;
+}
+
+const astExtensions = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs']);
+function scriptKindFor(file: string): ts.ScriptKind { if (file.endsWith('.tsx')) return ts.ScriptKind.TSX; if (file.endsWith('.jsx')) return ts.ScriptKind.JSX; if (file.endsWith('.js') || file.endsWith('.mjs') || file.endsWith('.cjs')) return ts.ScriptKind.JS; return ts.ScriptKind.TS; }
+// Collapses a function/class body to its structural shape only: identifiers and literal
+// values are erased, so two declarations that differ only by renaming or reformatting
+// still compare equal. This is not semantic equivalence — reordered or differently
+// expressed logic is not detected — see YCF-Pendientes-y-Bloqueos.md.
+function normalizedShape(node: ts.Node): string {
+  if (ts.isIdentifier(node) || ts.isPrivateIdentifier(node)) return 'ID';
+  if (ts.isStringLiteralLike(node)) return 'STR';
+  if (ts.isNumericLiteral(node)) return 'NUM';
+  const children: string[] = [];
+  node.forEachChild((child) => { children.push(normalizedShape(child)); });
+  return `${node.kind}(${children.join(',')})`;
+}
+interface AstCandidate { file: string; startLine: number; endLine: number; shape: string; size: number; }
+function astCandidates(target: string, file: string): AstCandidate[] {
+  if (!astExtensions.has(extname(file))) return [];
+  let text: string; try { text = readFileSync(file, 'utf8'); } catch { return []; }
+  const sourceFile = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, scriptKindFor(file));
+  const displayPath = relative(target, file); const out: AstCandidate[] = [];
+  const record = (node: ts.Node, body: ts.Node): void => {
+    const shape = normalizedShape(body);
+    if (shape.length < 60) return;
+    const startLine = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1;
+    const endLine = sourceFile.getLineAndCharacterOfPosition(node.end).line + 1;
+    out.push({ file: displayPath, startLine, endLine, shape, size: endLine - startLine + 1 });
+  };
+  const visit = (node: ts.Node): void => {
+    if (ts.isFunctionDeclaration(node) && node.body) record(node, node.body);
+    else if (ts.isMethodDeclaration(node) && node.body) record(node, node.body);
+    else if (ts.isVariableDeclaration(node) && node.initializer && (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer)) && node.initializer.body) record(node.initializer, node.initializer.body);
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+  return out;
+}
+function astDuplicateGroups(target: string, files: string[]): DuplicateGroup[] {
+  const grouped = new Map<string, AstCandidate[]>();
+  for (const candidate of files.flatMap((file) => astCandidates(target, file))) { const list = grouped.get(candidate.shape) ?? []; list.push(candidate); grouped.set(candidate.shape, list); }
+  return [...grouped.values()].filter((group) => group.length > 1).map((group) => ({
+    id: `ast-duplicate-code:${group.map((item) => `${item.file}:${item.startLine}`).join(':')}`,
+    kind: 'ast' as const, certainty: 'likely' as const, similarity: 1, lines: group[0].size,
+    occurrences: group.map((item) => ({ file: item.file, startLine: item.startLine, endLine: item.endLine }))
+  }));
 }
 
 export function duplicateGroups(target: string, files: string[]): DuplicateGroup[] {
@@ -53,7 +100,7 @@ export function duplicateGroups(target: string, files: string[]): DuplicateGroup
     const occurrences = group.map((candidate) => candidate.occurrence);
     return [{ id: `similar-duplicate-code:${occurrences.map((occurrence) => `${occurrence.file}:${occurrence.startLine}`).join(':')}`, kind: 'similar' as const, certainty: 'likely' as const, similarity: Number(similarity.toFixed(2)), lines: 6, occurrences }];
   });
-  return [...exact, ...similar];
+  return [...exact, ...similar, ...astDuplicateGroups(target, files)];
 }
 
 export function duplicateFindings(target: string, files: string[]): Finding[] {
@@ -61,14 +108,16 @@ export function duplicateFindings(target: string, files: string[]): Finding[] {
     const [, ...copies] = group.occurrences;
     return {
       id: group.id,
-      ruleId: group.kind === 'exact' ? 'duplicate-code' : 'similar-duplicate-code',
+      ruleId: group.kind === 'exact' ? 'duplicate-code' : group.kind === 'similar' ? 'similar-duplicate-code' : 'ast-duplicate-code',
       severity: 'medium',
       risk: 'report-only',
       file: copies[0].file,
       lines: [copies[0].startLine, copies[0].endLine],
       evidence: group.kind === 'exact'
         ? `Confirmed: an exact normalized ${group.lines}-line block appears in ${group.occurrences.length} locations (${group.occurrences.map((occurrence) => `${occurrence.file}:${occurrence.startLine}`).join(', ')}). Review behavior and consumers before consolidation.`
-        : `Likely duplicate: structurally similar ${group.lines}-line blocks have ${Math.round(group.similarity * 100)}% lexical overlap in ${group.occurrences.length} locations (${group.occurrences.map((occurrence) => `${occurrence.file}:${occurrence.startLine}`).join(', ')}). Names or values differ, so compare behavior, errors, and consumers before consolidation.`,
+        : group.kind === 'similar'
+        ? `Likely duplicate: structurally similar ${group.lines}-line blocks have ${Math.round(group.similarity * 100)}% lexical overlap in ${group.occurrences.length} locations (${group.occurrences.map((occurrence) => `${occurrence.file}:${occurrence.startLine}`).join(', ')}). Names or values differ, so compare behavior, errors, and consumers before consolidation.`
+        : `Likely duplicate: a function/method with the same structural shape (same statements and operators, different names or literal values) appears in ${group.occurrences.length} locations (${group.occurrences.map((occurrence) => `${occurrence.file}:${occurrence.startLine}`).join(', ')}). This is a structural match, not proven behavioral equivalence — compare behavior, errors, and consumers before consolidation.`,
       scoreImpact: Math.min(8, 2 + copies.length * 2)
     };
   });

@@ -527,10 +527,25 @@ describe('stack detection', () => {
     ].join('\n');
     writeFileSync(first, emailSource);
     writeFileSync(second, usernameSource);
-    expect(duplicateGroups(directory, [first, second])).toMatchObject([{ kind: 'similar', certainty: 'likely', lines: 6, occurrences: [{ file: 'email.js', startLine: 1 }, { file: 'username.js', startLine: 1 }] }]);
+    const groups = duplicateGroups(directory, [first, second]);
+    expect(groups).toContainEqual(expect.objectContaining({ kind: 'similar', certainty: 'likely', lines: 6, occurrences: [{ file: 'email.js', startLine: 1, endLine: 6 }, { file: 'username.js', startLine: 1, endLine: 6 }] }));
+    expect(groups).toContainEqual(expect.objectContaining({ kind: 'ast', certainty: 'likely', similarity: 1, occurrences: [{ file: 'email.js', startLine: 1, endLine: 6 }, { file: 'username.js', startLine: 1, endLine: 6 }] }));
     expect(audit(directory).findings).toContainEqual(expect.objectContaining({ ruleId: 'similar-duplicate-code', risk: 'report-only' }));
+    expect(audit(directory).findings).toContainEqual(expect.objectContaining({ ruleId: 'ast-duplicate-code', risk: 'report-only' }));
     expect(readFileSync(first, 'utf8')).toBe(emailSource);
     expect(readFileSync(second, 'utf8')).toBe(usernameSource);
+  });
+
+  it('reports functions with the same structural shape as an AST duplicate even when line-window matching misses them', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    const first = join(directory, 'sum.js');
+    const second = join(directory, 'total.js');
+    writeFileSync(first, ['function sum(items) {', '  let result = 0;', '  for (const item of items) {', '    result = result + item;', '  }', '  return result;', '}'].join('\n'));
+    writeFileSync(second, ['function total(values) {', '  let accumulator = 0;', '  for (const value of values) {', '    accumulator = accumulator + value;', '  }', '  return accumulator;', '}'].join('\n'));
+    const groups = duplicateGroups(directory, [first, second]);
+    expect(groups).toContainEqual(expect.objectContaining({ kind: 'ast', certainty: 'likely', occurrences: [{ file: 'sum.js', startLine: 1, endLine: 7 }, { file: 'total.js', startLine: 1, endLine: 7 }] }));
+    expect(readFileSync(first, 'utf8')).toContain('function sum'); expect(readFileSync(second, 'utf8')).toContain('function total');
   });
 
   it('creates a verification plan only for scripts the project declares', () => {
