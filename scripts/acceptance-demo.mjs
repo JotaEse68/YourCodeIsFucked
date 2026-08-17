@@ -12,15 +12,15 @@ const run = (command, args) => execFileSync(command, args, { cwd: fixture, encod
 
 write('package.json', JSON.stringify({ name: 'ycf-acceptance-fixture', private: true, type: 'module', scripts: { test: 'node --test', build: 'node --check src/app.mjs && node --check src/features/feature.mjs' } }, null, 2));
 write('src/legacy/math.mjs', 'export const add = (left, right) => left + right;\n');
-write('src/legacy/feature.mjs', "import { add } from './math.mjs';\nexport const total = add(1, 2);\n");
-write('src/app.mjs', "import { total } from './legacy/feature.mjs';\nexport { total };\n");
-write('src/legacy/text.mjs', "export function formatTotal(label) {\n  return label.trim();\n}\nexport const marker = true;\n");
+write('src/legacy/feature.mjs', "import { add } from './math.mjs';\nimport { formatTotal } from './text.mjs';\nexport const total = add(1, 2);\nexport const label = formatTotal(' demo ');\n");
+write('src/app.mjs', "import { total, label } from './legacy/feature.mjs';\nexport { total, label };\n");
+write('src/legacy/text.mjs', "export function formatTotal(label) {\n  return label.trim();\n}\n");
 write('src/legacy/greeting.mjs', "export const greeting = () => 'hi';\n");
 write('src/use-greeting.mjs', "import { greeting } from './legacy/greeting.mjs';\nexport const message = greeting();\n");
 write('src/legacy/format-a.mjs', 'export const formatName = (name) => name.trim();\n');
 write('src/legacy/format-b.mjs', 'export const formatName = (name) => name.trim();\n');
 write('src/use-format.mjs', "import { formatName } from './legacy/format-b.mjs';\nexport const formatted = formatName(' demo ');\n");
-write('test/app.test.mjs', "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\nimport { total } from '../src/app.mjs';\ntest('real fixture still works after the move', () => assert.equal(total, 3));\n");
+write('test/app.test.mjs', "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\nimport { total, label } from '../src/app.mjs';\ntest('real fixture still works after the move', () => assert.equal(total, 3));\ntest('the extracted module resolves at runtime under native ESM', () => assert.equal(label, 'demo'));\n");
 git(['init', '-q']); git(['config', 'user.email', 'ycf-demo@example.com']); git(['config', 'user.name', 'YCF Acceptance Demo']); git(['add', '.']); git(['commit', '-qm', 'fixture: initial working project']);
 
 const block = (id, operations, dependencies = []) => ({ id, type: 'ACCEPTANCE_DEMO', goal: id, reason: 'reproducible acceptance fixture', risk: 'LOW', confidence: 99, mode: 'SAFE', files: [], dependencies, affectedModules: [], preconditions: [], operations, validation: [], rollback: [{ kind: 'undo-operation', description: 'Undo this block operation journal.' }], status: 'PLANNED' });
@@ -50,7 +50,7 @@ assert.equal(existsSync(join(fixture, 'src/features/should-not-survive.mjs')), f
 assert.equal(existsSync(join(fixture, 'src/independent-after-rollback.mjs')), true);
 assert.match(readFileSync(join(fixture, 'src/app.mjs'), 'utf8'), /\.\/features\/feature\.mjs/);
 assert.match(readFileSync(join(fixture, 'src/features/feature.mjs'), 'utf8'), /\.\.\/legacy\/math\.mjs/);
-assert.match(readFileSync(join(fixture, 'src/legacy/text.mjs'), 'utf8'), /from '\.\/format-total'/);
+assert.match(readFileSync(join(fixture, 'src/legacy/text.mjs'), 'utf8'), /from '\.\/format-total\.mjs'/);
 assert.match(readFileSync(join(fixture, 'src/use-greeting.mjs'), 'utf8'), /\.\/legacy\/hello\.mjs/);
 assert.match(readFileSync(join(fixture, 'src/use-format.mjs'), 'utf8'), /\.\/legacy\/format-a\.mjs/);
 

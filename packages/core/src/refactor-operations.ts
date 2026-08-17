@@ -10,6 +10,12 @@ function stripExt(file: string): string { return file.replace(/\.(?:[cm]?js|jsx|
 function sameModule(a: string, b: string): boolean { return stripExt(resolve(a)).toLowerCase() === stripExt(resolve(b)).toLowerCase(); }
 function atomicWrite(file: string, content: string): void { const temp = `${file}.ycf-tmp-${process.pid}`; writeFileSync(temp, content, 'utf8'); renameSync(temp, file); }
 function relativeSpecifier(importer: string, destination: string, original: string): string { const next = relative(dirname(importer), destination).replaceAll('\\', '/'); const value = next.startsWith('.') ? next : `./${next}`; return /\.(?:[cm]?js|jsx|tsx?|php)$/i.test(original) ? value : stripExt(value); }
+// TypeScript specifiers never carry a .ts/.tsx extension (the compiler rejects it under
+// classic/bundler resolution); JS-family specifiers need their real extension so the
+// import resolves under native Node ESM (`type: module`), where extension-less relative
+// imports throw ERR_MODULE_NOT_FOUND. Unlike rewriteReferences, EXTRACT has no pre-existing
+// specifier to copy the convention from, so it must decide from the new file's own extension.
+function newModuleSpecifier(importer: string, destination: string): string { return /\.tsx?$/i.test(destination) ? relativeSpecifier(importer, destination, './x') : relativeSpecifier(importer, destination, destination); }
 function declarationNames(node: ts.Node): string[] {
   if (ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node) || ts.isEnumDeclaration(node) || ts.isTypeAliasDeclaration(node) || ts.isInterfaceDeclaration(node)) return node.name ? [node.name.text] : [];
   if (ts.isVariableStatement(node)) return node.declarationList.declarations.flatMap((declaration) => declaration.name.getText().match(/^[$A-Z_a-z][$\w]*$/) ? [declaration.name.getText()] : []);
@@ -108,7 +114,7 @@ export function applyRefactorOperation(target: string, operation: RefactorOperat
     const extracted = extractDeclaration(before, sourceFile, operation.range.startLine, operation.range.endLine, operation.exportedNames);
     const extractedText = before.slice(extracted.start, extracted.end).trim();
     if (!extractedText || hasThisOrSuper(extracted.node)) throw new Error('SUPERVISED: extraction has ambiguous outer scope.');
-    const path = relativeSpecifier(source, destination, './x');
+    const path = newModuleSpecifier(source, destination);
     const sourceAfter = `import { ${operation.exportedNames.join(', ')} } from '${path}';\nexport { ${operation.exportedNames.join(', ')} };\n${before.slice(0, extracted.start)}${before.slice(extracted.end)}`;
     const destinationAfter = `${extracted.imports ? `${extracted.imports}\n\n` : ''}${extractedText}\n`;
     mkdirSync(dirname(destination), { recursive: true }); atomicWrite(destination, destinationAfter); atomicWrite(source, sourceAfter);

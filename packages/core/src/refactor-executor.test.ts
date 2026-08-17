@@ -81,6 +81,29 @@ describe('architectural refactor executor', () => {
     expect(result.keptBlocks).toEqual(['RF-GIT-OK']); expect(result.rolledBackBlocks).toEqual(['RF-GIT-FAIL']); expect(journal?.blocks.map((item) => item.status)).toEqual(['VERIFIED', 'ROLLED_BACK']); expect(journal?.blocks.every((item) => item.ref && item.commit)).toBe(true);
   });
 
+  it('keeps the file extension when extracting into a JS-family module, so the import resolves under native Node ESM', () => {
+    const root = mkdtempSync(join(tmpdir(), 'ycf-extract-esm-')); const write = (file: string, content: string) => { const path = join(root, file); mkdirSync(path.slice(0, path.lastIndexOf('\\')), { recursive: true }); writeFileSync(path, content); };
+    write('package.json', JSON.stringify({ type: 'module' })); write('source.mjs', 'export function greet(name) {\n  return `hi ${name}`;\n}\nexport const marker = true;\n');
+    const plan: ArchitecturalRefactorPlan = { version: 2, target: root, generatedAt: new Date().toISOString(), sourceFindings: [], summary: { auto: 0, safeRefactor: 0, supervised: 0, architectural: 0, blocked: 0 }, blocks: [
+      block('RF-EXTRACT-ESM', [{ id: 'op-extract-esm', kind: 'EXTRACT', description: 'extract greet into a Node ESM module', sourceFile: 'source.mjs', targetFile: 'greet.mjs', range: { startLine: 1, endLine: 3 }, exportedNames: ['greet'] }])
+    ] };
+    const result = executeRefactorPlan(root, plan, { createGitCheckpoint: false });
+    expect(result.keptBlocks).toEqual(['RF-EXTRACT-ESM']);
+    expect(readFileSync(join(root, 'source.mjs'), 'utf8')).toContain("from './greet.mjs'");
+    expect(readFileSync(join(root, 'greet.mjs'), 'utf8')).toContain('export function greet');
+  });
+
+  it('keeps stripping the extension when extracting into a TypeScript module', () => {
+    const root = mkdtempSync(join(tmpdir(), 'ycf-extract-ts-')); writeFileSync(join(root, 'source.ts'), 'export function greet(name: string) {\n  return `hi ${name}`;\n}\nexport const marker = true;\n');
+    const plan: ArchitecturalRefactorPlan = { version: 2, target: root, generatedAt: new Date().toISOString(), sourceFindings: [], summary: { auto: 0, safeRefactor: 0, supervised: 0, architectural: 0, blocked: 0 }, blocks: [
+      block('RF-EXTRACT-TS', [{ id: 'op-extract-ts', kind: 'EXTRACT', description: 'extract greet into a TypeScript module', sourceFile: 'source.ts', targetFile: 'greet.ts', range: { startLine: 1, endLine: 3 }, exportedNames: ['greet'] }])
+    ] };
+    const result = executeRefactorPlan(root, plan, { createGitCheckpoint: false });
+    expect(result.keptBlocks).toEqual(['RF-EXTRACT-TS']);
+    expect(readFileSync(join(root, 'source.ts'), 'utf8')).toContain("from './greet'");
+    expect(readFileSync(join(root, 'source.ts'), 'utf8')).not.toContain("from './greet.ts'");
+  });
+
   it('marks an interrupted RUNNING block as pending in the durable journal', () => {
     const root = mkdtempSync(join(tmpdir(), 'ycf-interrupted-')); writeFileSync(join(root, 'source.ts'), 'export const value = 1;\n'); const runGit = (args: string[]) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8' });
     runGit(['init', '-q']); runGit(['config', 'user.email', 'ycf-test@example.com']); runGit(['config', 'user.name', 'YCF Test']); runGit(['add', 'source.ts']); runGit(['commit', '-qm', 'initial']);
