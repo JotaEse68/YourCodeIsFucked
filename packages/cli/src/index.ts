@@ -4,7 +4,7 @@ import { mkdirSync, existsSync, readFileSync, renameSync, writeFileSync } from '
 import { join, relative, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Command } from 'commander';
 import { aiResidueFindings, audit, buildArchitecturalRefactorPlan, cleanupDevArtifacts, createCheckpoint, dependencyAudit, dependencyAuditPlan, executeRefactorPlan, impactAnalysis, latestCheckpoint, loadConfig, refactorPlan, releaseCheckLabel, releaseHeading, releaseReadiness, releaseReportLabel, rollbackToCheckpoint, understand, verificationPlan, verify, writeAuditReport, writeDependencyAuditReport, writeReleaseReport, writeUnfuckReport } from '@jotaese68/core';
 
@@ -217,10 +217,13 @@ function guidedAdvice(finding: { ruleId: string; evidence: string }, language: L
   return advice[language][finding.ruleId] ?? fallback[language];
 }
 
+const cliPackagePath = fileURLToPath(new URL('../package.json', import.meta.url));
+const { version: cliVersion } = JSON.parse(readFileSync(cliPackagePath, 'utf8')) as { version: string };
+
 const program = new Command()
   .name('ycf')
   .description('YCF — YourCodeIsFucked. Deterministic codebase quality tooling.')
-  .version('0.1.0-dev');
+  .version(cliVersion);
 
 program.command('init [target]').description('Create YCF configuration without overwriting existing files.').option('--language <language>', 'Response language: en, es, pt, fr, de, it, ar, or zh.').option('--audience <audience>', 'Explanation level: guided, technical, or professional.').action(async (target = '.', options) => {
   const directory = resolve(target);
