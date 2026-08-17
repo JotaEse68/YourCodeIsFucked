@@ -12,12 +12,16 @@
   "type": "module",
   "bin": { "ycf": "dist/index.js" },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node build.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@jotaese68/core": "workspace:*",
-    "commander": "^13.1.0"
+    "commander": "^13.1.0",
+    "typescript": "^5.8.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "@jotaese68/core": "workspace:*"
   }
 }
