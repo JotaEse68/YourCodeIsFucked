@@ -87,4 +87,46 @@ describe('architectural refactor executor', () => {
     const second = beginCheckpointJournal(root, ['RF-NEW']); expect(second).toBeDefined(); const archived = JSON.parse(readFileSync(join(root, '.ycf', 'refactor-checkpoints', `${first?.journal.runId}.json`), 'utf8')) as { blocks: Array<{ status: string; error?: string }> };
     expect(archived.blocks[0]).toMatchObject({ status: 'PENDING', error: 'Execution interrupted before the block reached a final state.' });
   });
+
+  describe('import resolution during MOVE', () => {
+    it('rewrites a tsconfig path alias to a relative specifier', () => {
+      const root = mkdtempSync(join(tmpdir(), 'ycf-alias-')); const write = (file: string, content: string) => { const path = join(root, file); mkdirSync(path.slice(0, path.lastIndexOf('\\')), { recursive: true }); writeFileSync(path, content); };
+      write('tsconfig.json', JSON.stringify({ compilerOptions: { baseUrl: '.', paths: { '@utils/*': ['src/utils/*'] } } })); write('src/utils/math.ts', 'export const add = (a: number, b: number) => a + b;\n'); write('src/app.ts', "import { add } from '@utils/math';\nconsole.log(add(1, 2));\n");
+      const plan: ArchitecturalRefactorPlan = { version: 2, target: root, generatedAt: new Date().toISOString(), sourceFindings: [], summary: { auto: 1, safeRefactor: 1, supervised: 0, architectural: 0, blocked: 0 }, blocks: [block('RF-ALIAS', [{ id: 'op-move', kind: 'MOVE', description: 'move aliased module', source: 'src/utils/math.ts', destination: 'src/lib/math.ts', updateImports: true }])] };
+      const result = executeRefactorPlan(root, plan, { createGitCheckpoint: false });
+      expect(result.keptBlocks).toEqual(['RF-ALIAS']); expect(readFileSync(join(root, 'src/app.ts'), 'utf8')).toContain("from './lib/math'");
+    });
+
+    it('rewrites export-from and export-star specifiers', () => {
+      const root = mkdtempSync(join(tmpdir(), 'ycf-export-from-')); const write = (file: string, content: string) => { const path = join(root, file); mkdirSync(path.slice(0, path.lastIndexOf('\\')), { recursive: true }); writeFileSync(path, content); };
+      write('src/utils/math.ts', 'export const add = (a: number, b: number) => a + b;\n'); write('src/index.ts', "export { add } from './utils/math';\nexport * from './utils/math';\n");
+      const plan: ArchitecturalRefactorPlan = { version: 2, target: root, generatedAt: new Date().toISOString(), sourceFindings: [], summary: { auto: 1, safeRefactor: 1, supervised: 0, architectural: 0, blocked: 0 }, blocks: [block('RF-EXPORT-FROM', [{ id: 'op-move', kind: 'MOVE', description: 'move re-exported module', source: 'src/utils/math.ts', destination: 'src/lib/math.ts', updateImports: true }])] };
+      const result = executeRefactorPlan(root, plan, { createGitCheckpoint: false });
+      expect(result.keptBlocks).toEqual(['RF-EXPORT-FROM']); const index = readFileSync(join(root, 'src/index.ts'), 'utf8'); expect(index).toContain("export { add } from './lib/math'"); expect(index).toContain("export * from './lib/math'");
+    });
+
+    it('rewrites require() and static import() specifiers', () => {
+      const root = mkdtempSync(join(tmpdir(), 'ycf-require-import-')); const write = (file: string, content: string) => { const path = join(root, file); mkdirSync(path.slice(0, path.lastIndexOf('\\')), { recursive: true }); writeFileSync(path, content); };
+      write('src/utils/math.ts', 'export const add = (a: number, b: number) => a + b;\n'); write('src/legacy.js', "const { add } = require('./utils/math');\nmodule.exports = { add };\n"); write('src/lazy.ts', "export async function load() {\n  const { add } = await import('./utils/math');\n  return add;\n}\n");
+      const plan: ArchitecturalRefactorPlan = { version: 2, target: root, generatedAt: new Date().toISOString(), sourceFindings: [], summary: { auto: 1, safeRefactor: 1, supervised: 0, architectural: 0, blocked: 0 }, blocks: [block('RF-REQUIRE-IMPORT', [{ id: 'op-move', kind: 'MOVE', description: 'move required and dynamically imported module', source: 'src/utils/math.ts', destination: 'src/lib/math.ts', updateImports: true }])] };
+      const result = executeRefactorPlan(root, plan, { createGitCheckpoint: false });
+      expect(result.keptBlocks).toEqual(['RF-REQUIRE-IMPORT']); expect(readFileSync(join(root, 'src/legacy.js'), 'utf8')).toContain("require('./lib/math')"); expect(readFileSync(join(root, 'src/lazy.ts'), 'utf8')).toContain("import('./lib/math')");
+    });
+
+    it('leaves a require() with a dynamic (non-literal) specifier untouched', () => {
+      const root = mkdtempSync(join(tmpdir(), 'ycf-dynamic-require-')); const write = (file: string, content: string) => { const path = join(root, file); mkdirSync(path.slice(0, path.lastIndexOf('\\')), { recursive: true }); writeFileSync(path, content); };
+      write('src/utils/math.ts', 'export const add = (a: number, b: number) => a + b;\n'); const dynamic = "export function load(name) {\n  return require(name);\n}\n"; write('src/dynamic.js', dynamic);
+      const plan: ArchitecturalRefactorPlan = { version: 2, target: root, generatedAt: new Date().toISOString(), sourceFindings: [], summary: { auto: 1, safeRefactor: 1, supervised: 0, architectural: 0, blocked: 0 }, blocks: [block('RF-DYNAMIC-REQUIRE', [{ id: 'op-move', kind: 'MOVE', description: 'move module unrelated to the dynamic require', source: 'src/utils/math.ts', destination: 'src/lib/math.ts', updateImports: true }])] };
+      const result = executeRefactorPlan(root, plan, { createGitCheckpoint: false });
+      expect(result.keptBlocks).toEqual(['RF-DYNAMIC-REQUIRE']); expect(readFileSync(join(root, 'src/dynamic.js'), 'utf8')).toBe(dynamic);
+    });
+
+    it('blocks moving a file whose own content requires an unresolvable dynamic callback path', () => {
+      const root = mkdtempSync(join(tmpdir(), 'ycf-dynamic-callback-')); const write = (file: string, content: string) => { const path = join(root, file); mkdirSync(path.slice(0, path.lastIndexOf('\\')), { recursive: true }); writeFileSync(path, content); };
+      write('src/risky.ts', 'export function load(name: string) {\n  return require(`./${name}`);\n}\n');
+      const plan: ArchitecturalRefactorPlan = { version: 2, target: root, generatedAt: new Date().toISOString(), sourceFindings: [], summary: { auto: 0, safeRefactor: 0, supervised: 0, architectural: 0, blocked: 0 }, blocks: [block('RF-DYNAMIC-CALLBACK', [{ id: 'op-move', kind: 'MOVE', description: 'must not move a file with an unresolvable dynamic require', source: 'src/risky.ts', destination: 'src/moved/risky.ts', updateImports: true }])] };
+      const result = executeRefactorPlan(root, plan, { createGitCheckpoint: false });
+      expect(result.rolledBackBlocks).toEqual(['RF-DYNAMIC-CALLBACK']); expect(result.blocks[0].result?.error).toMatch(/^BLOCK:/); expect(existsSync(join(root, 'src/risky.ts'))).toBe(true);
+    });
+  });
 });
