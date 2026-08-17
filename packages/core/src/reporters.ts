@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { releaseCheckLabel, releaseCheckedLabel, releaseHeading } from './i18n.js';
 import type { AuditReport, DependencyAuditReport, Language, RefactorPlan, ReleaseReport, UnfuckReport } from './types.js';
+import type { ModuleImportEdge, RefactorExecutionReport } from './refactor-types.js';
 
 export function writeAuditReport(target: string, report: AuditReport): { jsonPath: string; markdownPath: string } {
   const output = join(resolve(target), '.ycf');
@@ -46,6 +47,30 @@ export function writeReleaseReport(target: string, report: ReleaseReport, langua
   writeFileSync(jsonPath, JSON.stringify(report, null, 2), 'utf8');
   const checks = report.checks.map((check) => `- ${releaseCheckLabel(language, check)}`).join('\n');
   writeFileSync(markdownPath, `# YCF — ${releaseHeading(language, report.ready)}\n\n${releaseCheckedLabel(language)}: ${report.checkedAt}\n\n${checks}\n`, 'utf8');
+  return { jsonPath, markdownPath };
+}
+
+function architectureDiffMarkdown(before: ModuleImportEdge[] = [], after: ModuleImportEdge[] = []): string {
+  const beforeMap = new Map(before.map((edge) => [edge.file, edge.imports]));
+  const afterMap = new Map(after.map((edge) => [edge.file, edge.imports]));
+  const added = [...afterMap.keys()].filter((file) => !beforeMap.has(file)).sort();
+  const removed = [...beforeMap.keys()].filter((file) => !afterMap.has(file)).sort();
+  const changed = [...afterMap.keys()].filter((file) => beforeMap.has(file) && (beforeMap.get(file) ?? []).join('|') !== (afterMap.get(file) ?? []).join('|')).sort();
+  const sections: string[] = [];
+  if (added.length) sections.push(`**New modules:**\n${added.map((file) => `- \`${file}\``).join('\n')}`);
+  if (removed.length) sections.push(`**Removed modules:**\n${removed.map((file) => `- \`${file}\``).join('\n')}`);
+  if (changed.length) sections.push(`**Changed import edges:**\n${changed.map((file) => `- \`${file}\`: ${(beforeMap.get(file) ?? []).join(', ') || '(none)'} → ${(afterMap.get(file) ?? []).join(', ') || '(none)'}`).join('\n')}`);
+  return sections.length ? sections.join('\n\n') : 'No architectural changes detected.';
+}
+
+export function writeRefactorExecutionReport(target: string, report: RefactorExecutionReport): { jsonPath: string; markdownPath: string } {
+  const output = join(resolve(target), '.ycf');
+  mkdirSync(output, { recursive: true });
+  const jsonPath = join(output, 'refactor-execution.json');
+  const markdownPath = join(output, 'refactor-execution.md');
+  writeFileSync(jsonPath, JSON.stringify(report, null, 2), 'utf8');
+  const blocks = report.blocks.length ? report.blocks.map((block) => `- \`${block.id}\`: **${block.status}**${block.result?.error ? ` — ${block.result.error}` : ''}`).join('\n') : '- No blocks.';
+  writeFileSync(markdownPath, `# YCF refactor execution\n\nStatus: **${report.status.toUpperCase()}**\n\n- Verified: ${report.keptBlocks.join(', ') || 'none'}\n- Rolled back: ${report.rolledBackBlocks.join(', ') || 'none'}\n- Blocked/supervised: ${report.blockedBlocks.join(', ') || 'none'}\n\n## Blocks\n\n${blocks}\n\n## Architecture (before → after)\n\n${architectureDiffMarkdown(report.before?.architecture, report.after?.architecture)}\n`, 'utf8');
   return { jsonPath, markdownPath };
 }
 

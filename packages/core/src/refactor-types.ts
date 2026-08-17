@@ -27,10 +27,11 @@ export interface RefactorBlock {
 
 export interface OperationRecord { operationId: string; kind: RefactorOperationKind; changedFiles: string[]; description: string; undone: boolean; }
 export interface RollbackEvent { blockId: string; reason: string; operationsUndone: string[]; isolated: true; }
+export interface ModuleImportEdge { file: string; imports: string[]; }
 export interface RefactorExecutionReport {
   version: 2; target: string; startedAt: string; completedAt: string; status: 'planned' | 'completed' | 'partial' | 'failed';
   blocks: RefactorBlock[]; keptBlocks: string[]; rolledBackBlocks: string[]; blockedBlocks: string[]; operationLog: OperationRecord[]; rollbackEvents: RollbackEvent[];
-  before?: { files: string[]; architecture?: unknown }; after?: { files: string[]; architecture?: unknown };
+  before?: { files: string[]; architecture: ModuleImportEdge[] }; after?: { files: string[]; architecture: ModuleImportEdge[] };
 }
 
 export interface ArchitecturalRefactorPlan {

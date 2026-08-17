@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { beginCheckpointJournal, updateBlockCheckpoint } from './refactor-checkpoints.js';
 import { verificationPlan, verify } from './verify.js';
 import type { ArchitecturalRefactorPlan, RefactorBlock, RefactorExecutionReport, OperationRecord, RollbackEvent } from './refactor-types.js';
-import { applyRefactorOperation, type AppliedOperation } from './refactor-operations.js';
+import { applyRefactorOperation, moduleImportGraph, type AppliedOperation } from './refactor-operations.js';
 
 function diffSummary(target: string): string { try { return execFileSync('git', ['-C', resolve(target), 'diff', '--stat'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { return ''; } }
 function sourceSnapshot(root: string): string[] { const ignored = new Set(['node_modules', 'dist', 'build', '.git', '.ycf']); const walk = (directory: string): string[] => readdirSync(directory).flatMap((entry) => { if (ignored.has(entry)) return []; const file = resolve(directory, entry); return statSync(file).isDirectory() ? walk(file) : /\.(?:[cm]?js|jsx|tsx?|php)$/i.test(file) ? [file.slice(root.length + 1).replaceAll('\\', '/')] : []; }); return walk(root).sort(); }
@@ -17,7 +17,7 @@ function runVerification(target: string, block: RefactorBlock, full: boolean): R
 }
 
 export function executeRefactorPlan(target: string, plan: ArchitecturalRefactorPlan, options: { allowSupervised?: boolean; fullVerify?: boolean; createGitCheckpoint?: boolean } = {}): RefactorExecutionReport {
-  const startedAt = new Date().toISOString(); const root = resolve(target); const beforeFiles = sourceSnapshot(root); const keptBlocks: string[] = []; const rolledBackBlocks: string[] = []; const blockedBlocks: string[] = []; const operationLog: OperationRecord[] = []; const rollbackEvents: RollbackEvent[] = [];
+  const startedAt = new Date().toISOString(); const root = resolve(target); const beforeFiles = sourceSnapshot(root); const beforeArchitecture = moduleImportGraph(root); const keptBlocks: string[] = []; const rolledBackBlocks: string[] = []; const blockedBlocks: string[] = []; const operationLog: OperationRecord[] = []; const rollbackEvents: RollbackEvent[] = [];
   const checkpoints = options.createGitCheckpoint === false ? undefined : beginCheckpointJournal(target, plan.blocks.map((block) => block.id));
   for (const block of plan.blocks) {
     if (!dependencyReady(block, plan.blocks)) { block.status = 'BLOCKED'; block.result = { changedFiles: [], diffSummary: '', verificationPassed: false, error: `Dependencies not verified: ${block.dependencies.join(', ')}` }; blockedBlocks.push(block.id); updateBlockCheckpoint(checkpoints, block.id, 'BLOCKED', { error: block.result.error }); continue; }
@@ -35,5 +35,5 @@ export function executeRefactorPlan(target: string, plan: ArchitecturalRefactorP
     }
   }
   const status = rolledBackBlocks.length || blockedBlocks.length ? (keptBlocks.length ? 'partial' : 'failed') : 'completed';
-  return { version: 2, target: root, startedAt, completedAt: new Date().toISOString(), status, blocks: plan.blocks, keptBlocks, rolledBackBlocks, blockedBlocks, operationLog, rollbackEvents, before: { files: beforeFiles }, after: { files: sourceSnapshot(root) } };
+  return { version: 2, target: root, startedAt, completedAt: new Date().toISOString(), status, blocks: plan.blocks, keptBlocks, rolledBackBlocks, blockedBlocks, operationLog, rollbackEvents, before: { files: beforeFiles, architecture: beforeArchitecture }, after: { files: sourceSnapshot(root), architecture: moduleImportGraph(root) } };
 }

@@ -6,7 +6,7 @@ import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Command } from 'commander';
-import { aiResidueFindings, audit, buildArchitecturalRefactorPlan, cleanupDevArtifacts, createCheckpoint, dependencyAudit, dependencyAuditPlan, executeRefactorPlan, impactAnalysis, latestCheckpoint, loadConfig, refactorPlan, releaseCheckLabel, releaseHeading, releaseReadiness, releaseReportLabel, rollbackToCheckpoint, understand, verificationPlan, verify, writeAuditReport, writeDependencyAuditReport, writeReleaseReport, writeUnfuckReport } from '@jotaese68/core';
+import { aiResidueFindings, audit, buildArchitecturalRefactorPlan, cleanupDevArtifacts, createCheckpoint, dependencyAudit, dependencyAuditPlan, executeRefactorPlan, impactAnalysis, latestCheckpoint, loadConfig, refactorPlan, releaseCheckLabel, releaseHeading, releaseReadiness, releaseReportLabel, rollbackToCheckpoint, understand, verificationPlan, verify, writeAuditReport, writeDependencyAuditReport, writeReleaseReport, writeRefactorExecutionReport, writeUnfuckReport } from '@jotaese68/core';
 
 // pnpm forwards a standalone `--` to package scripts on some platforms.
 if (process.argv[2] === '--') process.argv.splice(2, 1);
@@ -473,11 +473,12 @@ program.command('unfuck [target]').description('Run YCF’s safe pipeline with g
   if (options.applyPlan) {
     const plan = JSON.parse(readFileSync(resolve(target, options.applyPlan), 'utf8'));
     const result = executeRefactorPlan(target, plan, { allowSupervised: Boolean(options.yes), fullVerify: true });
-    writeFileSync(join(resolve(target), '.ycf', 'refactor-execution.json'), JSON.stringify(result, null, 2), 'utf8');
+    const paths = writeRefactorExecutionReport(target, result);
     console.log(`YCF unfuck structural execution: ${result.status}`);
     console.log(`Verified: ${result.keptBlocks.join(', ') || 'none'}`);
     console.log(`Rolled back: ${result.rolledBackBlocks.join(', ') || 'none'}`);
     console.log(`Blocked/supervised: ${result.blockedBlocks.join(', ') || 'none'}`);
+    console.log(`Report: ${paths.markdownPath}`);
     return;
   }
   const before = audit(target);
@@ -563,8 +564,9 @@ program.command('seniorize [target]').description('Run the complete quality pipe
   console.log(`Architectural blocks: ${architectural.blocks.length} (supervised candidates are not executed silently)`);
   if (options.dryRun || !options.yes) { console.log('No files changed. Review the plan, then re-run with --yes to execute the safe block.'); return; }
   const structural = executeRefactorPlan(target, architectural, { allowSupervised: false, fullVerify: true });
-  writeFileSync(join(resolve(target), '.ycf', 'refactor-execution.json'), JSON.stringify(structural, null, 2), 'utf8');
+  const structuralReport = writeRefactorExecutionReport(target, structural);
   console.log(`Structural executor: ${structural.status}; verified ${structural.keptBlocks.length}, rolled back ${structural.rolledBackBlocks.length}, blocked ${structural.blockedBlocks.length}.`);
+  console.log(`Structural report: ${structuralReport.markdownPath}`);
   const checkpoint = createCheckpoint(target);
   try {
     const cleanup = safe ? cleanupDevArtifacts(target) : undefined;
