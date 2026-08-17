@@ -3,3 +3,4 @@ dist
 coverage
 .ycf
 artifacts
+.worktrees
