@@ -12,19 +12,39 @@ const block = (id: string, operations: RefactorBlock['operations'], dependencies
 describe('architectural refactor executor', () => {
   it('moves, recalculates internal imports, extracts, consolidates and isolates rollback', () => {
     const root = mkdtempSync(join(tmpdir(), 'ycf-refactor-')); const write = (file: string, content: string) => { const path = join(root, file); const parent = path.slice(0, path.lastIndexOf('\\')); mkdirSync(parent, { recursive: true }); writeFileSync(path, content); };
-    write('src/legacy/old.ts', "import { add } from '../utils/math';\nexport function formatName(name: string) {\n  return name.trim();\n}\nexport const total = add(1, 2);\n"); write('src/utils/math.ts', 'export const add = (a: number, b: number) => a + b;\n'); write('src/app.ts', "import { total } from './legacy/old';\nconsole.log(total);\n"); write('src/api.ts', 'export const request = () => true;\n'); write('src/api-copy.ts', 'export const request = () => true;\n'); write('src/use-copy.ts', "import { request } from './api-copy';\nrequest();\n");
+    write('src/legacy/old.ts', "import { add } from '../utils/math';\nexport function formatName(name: string) {\n  return name.trim();\n}\nexport const total = add(1, 2);\n"); write('src/utils/math.ts', 'export const add = (a: number, b: number) => a + b;\n'); write('src/app.ts', "import { total } from './legacy/old';\nconsole.log(total);\n"); write('src/greet.ts', 'export const greeting = () => "hi";\n'); write('src/greet-copy.ts', 'export const greeting = () => "hi";\n'); write('src/use-copy.ts', "import { greeting } from './greet-copy';\ngreeting();\n");
     const plan: ArchitecturalRefactorPlan = { version: 2, target: root, generatedAt: new Date().toISOString(), sourceFindings: [], summary: { auto: 5, safeRefactor: 5, supervised: 0, architectural: 0, blocked: 0 }, blocks: [
       block('RF-001', [{ id: 'op-move', kind: 'MOVE', description: 'move old module', source: 'src/legacy/old.ts', destination: 'src/features/old.ts', updateImports: true }]),
       block('RF-002', [{ id: 'op-extract', kind: 'EXTRACT', description: 'extract formatName', sourceFile: 'src/features/old.ts', targetFile: 'src/features/format-name.ts', range: { startLine: 2, endLine: 4 }, exportedNames: ['formatName'] }], ['RF-001']),
-      block('RF-003', [{ id: 'op-consolidate', kind: 'CONSOLIDATE', description: 'remove exact duplicate', canonicalFile: 'src/api.ts', duplicateFile: 'src/api-copy.ts', symbol: 'request' }]),
+      block('RF-003', [{ id: 'op-consolidate', kind: 'CONSOLIDATE', description: 'remove exact duplicate', canonicalFile: 'src/greet.ts', duplicateFile: 'src/greet-copy.ts', symbol: 'greeting' }]),
       block('RF-004', [{ id: 'op-fail', kind: 'RENAME', description: 'forced failure', source: 'src/missing.ts', destination: 'src/nope.ts', updateImports: true }]),
       block('RF-005', [{ id: 'op-independent', kind: 'CREATE', description: 'continue after rollback', file: 'src/after-rollback.ts', content: 'export const healthy = true;\n' }])
     ] };
     const result = executeRefactorPlan(root, plan, { createGitCheckpoint: false });
     expect(result.keptBlocks).toEqual(['RF-001', 'RF-002', 'RF-003', 'RF-005']); expect(result.rolledBackBlocks).toEqual(['RF-004']); expect(result.rollbackEvents[0]?.isolated).toBe(true);
     expect(result.before?.files).toContain('src/legacy/old.ts'); expect(result.after?.files).toContain('src/features/old.ts'); expect(result.after?.files).not.toContain('src/legacy/old.ts');
-    expect(existsSync(join(root, 'src/features/old.ts'))).toBe(true); expect(existsSync(join(root, 'src/features/format-name.ts'))).toBe(true); expect(existsSync(join(root, 'src/api-copy.ts'))).toBe(false); expect(existsSync(join(root, 'src/after-rollback.ts'))).toBe(true);
-    expect(readFileSync(join(root, 'src/features/old.ts'), 'utf8')).toContain("from '../utils/math'"); expect(readFileSync(join(root, 'src/use-copy.ts'), 'utf8')).toContain("from './api'");
+    expect(existsSync(join(root, 'src/features/old.ts'))).toBe(true); expect(existsSync(join(root, 'src/features/format-name.ts'))).toBe(true); expect(existsSync(join(root, 'src/greet-copy.ts'))).toBe(false); expect(existsSync(join(root, 'src/after-rollback.ts'))).toBe(true);
+    expect(readFileSync(join(root, 'src/features/old.ts'), 'utf8')).toContain("from '../utils/math'"); expect(readFileSync(join(root, 'src/use-copy.ts'), 'utf8')).toContain("from './greet'");
+  });
+
+  it('refuses to consolidate a duplicate that sits in a protected area', () => {
+    const root = mkdtempSync(join(tmpdir(), 'ycf-consolidate-protected-')); const write = (file: string, content: string) => { const path = join(root, file); mkdirSync(path.slice(0, path.lastIndexOf('\\')), { recursive: true }); writeFileSync(path, content); };
+    write('src/webhook-handler.ts', 'export const handle = () => true;\n'); write('src/webhook-handler-copy.ts', 'export const handle = () => true;\n');
+    const plan: ArchitecturalRefactorPlan = { version: 2, target: root, generatedAt: new Date().toISOString(), sourceFindings: [], summary: { auto: 0, safeRefactor: 0, supervised: 0, architectural: 0, blocked: 0 }, blocks: [
+      block('RF-CONSOLIDATE-PROTECTED', [{ id: 'op-consolidate', kind: 'CONSOLIDATE', description: 'must not auto-merge a webhook handler', canonicalFile: 'src/webhook-handler.ts', duplicateFile: 'src/webhook-handler-copy.ts', symbol: 'handle' }])
+    ] };
+    const result = executeRefactorPlan(root, plan, { createGitCheckpoint: false });
+    expect(result.rolledBackBlocks).toEqual(['RF-CONSOLIDATE-PROTECTED']); expect(result.blocks[0].result?.error).toMatch(/^SUPERVISED:/); expect(existsSync(join(root, 'src/webhook-handler-copy.ts'))).toBe(true);
+  });
+
+  it('refuses to consolidate a duplicate that is a public package.json entry point', () => {
+    const root = mkdtempSync(join(tmpdir(), 'ycf-consolidate-entrypoint-')); const write = (file: string, content: string) => { const path = join(root, file); mkdirSync(path.slice(0, path.lastIndexOf('\\')), { recursive: true }); writeFileSync(path, content); };
+    write('package.json', JSON.stringify({ name: 'fixture', main: './lib/entry.ts', exports: { '.': './lib/entry.ts' } })); write('lib/entry.ts', 'export const value = 1;\n'); write('lib/entry-copy.ts', 'export const value = 1;\n');
+    const plan: ArchitecturalRefactorPlan = { version: 2, target: root, generatedAt: new Date().toISOString(), sourceFindings: [], summary: { auto: 0, safeRefactor: 0, supervised: 0, architectural: 0, blocked: 0 }, blocks: [
+      block('RF-CONSOLIDATE-ENTRYPOINT', [{ id: 'op-consolidate', kind: 'CONSOLIDATE', description: 'must not auto-merge a public entry point', canonicalFile: 'lib/entry-copy.ts', duplicateFile: 'lib/entry.ts', symbol: 'value' }])
+    ] };
+    const result = executeRefactorPlan(root, plan, { createGitCheckpoint: false });
+    expect(result.rolledBackBlocks).toEqual(['RF-CONSOLIDATE-ENTRYPOINT']); expect(result.blocks[0].result?.error).toMatch(/public package entry point/); expect(existsSync(join(root, 'lib/entry.ts'))).toBe(true);
   });
 
   it('blocks partial or non-exported extraction ranges', () => {

@@ -65,6 +65,23 @@ function aliases(root: string): Alias[] { for (const name of ['tsconfig.json', '
 function resolveImport(importer: string, specifier: string, root: string, configured: Alias[]): string | undefined { const candidates: string[] = []; if (specifier.startsWith('.') || specifier.startsWith('/')) candidates.push(resolve(dirname(importer), specifier)); for (const alias of configured) { const escaped = alias.pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace('\\*', '(.*)'); const match = specifier.match(new RegExp(`^${escaped}$`)); if (match) for (const target of alias.targets) candidates.push(resolve(alias.baseUrl, target.replace('*', match[1] ?? ''))); } for (const base of candidates) for (const file of [base, ...extensions.map((extension) => `${base}${extension}`), ...extensions.map((extension) => resolve(base, `index${extension}`))]) if (existsSync(file)) return file; return undefined; }
 function rewriteReferences(root: string, source: string, destination: string): { changed: string[]; before: Map<string, string> } { const sourceAbs = resolve(root, source); const destinationAbs = resolve(root, destination); const configured = aliases(root); const before = new Map<string, string>(); const changed: string[] = []; const pattern = /\b(?:from\s*|export\s+(?:type\s+)?[^;]*?\sfrom\s*|import\s*\(\s*|require\s*\(\s*)(["'])([^"']+)\1/g; for (const file of walk(root)) { const original = readFileSync(file, 'utf8'); const updated = original.replace(pattern, (whole, _quote: string, specifier: string) => { const resolved = resolveImport(file, specifier, root, configured); return resolved && sameModule(resolved, sourceAbs) ? whole.replace(specifier, relativeSpecifier(file, destinationAbs, specifier)) : whole; }); if (updated !== original) { before.set(file, original); atomicWrite(file, updated); changed.push(relative(root, file)); } } const moved = readFileSync(sourceAbs, 'utf8'); const internal = moved.replace(pattern, (whole, _quote: string, specifier: string) => { const resolved = resolveImport(sourceAbs, specifier, root, configured); if (!resolved) { if (specifier.startsWith('.')) throw new Error(`BLOCK: cannot resolve internal import ${specifier} in ${source}`); return whole; } return whole.replace(specifier, relativeSpecifier(destinationAbs, resolved, specifier)); }); if (internal !== moved) { before.set(sourceAbs, moved); atomicWrite(sourceAbs, internal); } return { changed, before }; }
 
+function packageJsonFiles(root: string): string[] { const out: string[] = []; const visit = (directory: string): void => { for (const entry of readdirSync(directory)) { if (ignored.has(entry)) continue; const file = resolve(directory, entry); if (statSync(file).isDirectory()) visit(file); else if (entry === 'package.json') out.push(file); } }; visit(root); return out; }
+function collectExportPaths(value: unknown, out: string[]): void { if (typeof value === 'string') { out.push(value); return; } if (value && typeof value === 'object') for (const nested of Object.values(value as Record<string, unknown>)) collectExportPaths(nested, out); }
+function publicEntryPoints(root: string): Set<string> {
+  const entries = new Set<string>();
+  for (const file of packageJsonFiles(root)) {
+    try {
+      const json = JSON.parse(readFileSync(file, 'utf8')) as { main?: string; types?: string; typings?: string; bin?: string | Record<string, string>; exports?: unknown };
+      const raw: string[] = [];
+      if (json.main) raw.push(json.main); if (json.types) raw.push(json.types); if (json.typings) raw.push(json.typings);
+      if (typeof json.bin === 'string') raw.push(json.bin); else if (json.bin) raw.push(...Object.values(json.bin));
+      if (json.exports) collectExportPaths(json.exports, raw);
+      for (const value of raw) if (value.startsWith('.')) entries.add(resolve(dirname(file), value));
+    } catch { /* an unparsable package.json cannot name an entry point */ }
+  }
+  return entries;
+}
+
 export interface AppliedOperation { operationId: string; changedFiles: string[]; description: string; undo: () => void; }
 export function applyRefactorOperation(target: string, operation: RefactorOperation): AppliedOperation { const root = resolve(target); const id = operation.id;
   if (operation.kind === 'MOVE' || operation.kind === 'RENAME') { const source = resolve(root, operation.source); const destination = resolve(root, operation.destination); if (!existsSync(source)) throw new Error(`Source does not exist: ${operation.source}`); if (existsSync(destination)) throw new Error(`Destination already exists: ${operation.destination}`); const contents = new Map(walk(root).map((file) => [file, readFileSync(file, 'utf8')])); const safety = assessRefactorSafety([source], contents); if (safety.mode === 'BLOCKED') throw new Error(`BLOCK: ${safety.reason}`); const ref = operation.updateImports ? rewriteReferences(root, operation.source, operation.destination) : { changed: [], before: new Map<string, string>() }; mkdirSync(dirname(destination), { recursive: true }); renameSync(source, destination); return { operationId: id, changedFiles: [...new Set([...ref.changed, operation.source, operation.destination])], description: operation.description, undo: () => { if (existsSync(destination)) renameSync(destination, source); for (const [file, content] of ref.before) atomicWrite(file, content); } }; }
@@ -86,6 +103,17 @@ export function applyRefactorOperation(target: string, operation: RefactorOperat
     mkdirSync(dirname(destination), { recursive: true }); atomicWrite(destination, destinationAfter); atomicWrite(source, sourceAfter);
     return { operationId: id, changedFiles: [operation.sourceFile, operation.targetFile], description: operation.description, undo: () => { atomicWrite(source, before); if (existsSync(destination)) unlinkSync(destination); } };
   }
-  if (operation.kind === 'CONSOLIDATE') { const canonical = resolve(root, operation.canonicalFile); const duplicate = resolve(root, operation.duplicateFile); if (readFileSync(canonical, 'utf8').replace(/\s/g, '') !== readFileSync(duplicate, 'utf8').replace(/\s/g, '')) throw new Error('SUPERVISED: files are not exact duplicates.'); const ref = rewriteReferences(root, operation.duplicateFile, operation.canonicalFile); const duplicateContent = readFileSync(duplicate, 'utf8'); unlinkSync(duplicate); return { operationId: id, changedFiles: [...ref.changed, operation.duplicateFile], description: operation.description, undo: () => { atomicWrite(duplicate, duplicateContent); for (const [file, content] of ref.before) atomicWrite(file, content); } }; }
+  if (operation.kind === 'CONSOLIDATE') {
+    const canonical = resolve(root, operation.canonicalFile); const duplicate = resolve(root, operation.duplicateFile);
+    const canonicalText = readFileSync(canonical, 'utf8'); const duplicateText = readFileSync(duplicate, 'utf8');
+    if (canonicalText.replace(/\s/g, '') !== duplicateText.replace(/\s/g, '')) throw new Error('SUPERVISED: files are not exact duplicates.');
+    const safety = assessRefactorSafety([canonical, duplicate], new Map([[canonical, canonicalText], [duplicate, duplicateText]]));
+    if (safety.mode === 'BLOCKED') throw new Error(`BLOCK: ${safety.reason}`);
+    if (safety.mode === 'SUPERVISED') throw new Error(`SUPERVISED: ${safety.reason}`);
+    const publicEntries = publicEntryPoints(root);
+    if (publicEntries.has(canonical) || publicEntries.has(duplicate)) throw new Error('SUPERVISED: one of these files is a public package entry point (main/exports/bin/types).');
+    const ref = rewriteReferences(root, operation.duplicateFile, operation.canonicalFile); unlinkSync(duplicate);
+    return { operationId: id, changedFiles: [...ref.changed, operation.duplicateFile], description: operation.description, undo: () => { atomicWrite(duplicate, duplicateText); for (const [file, content] of ref.before) atomicWrite(file, content); } };
+  }
   throw new Error(`Unsupported operation: ${String(operation.kind)}`);
 }
