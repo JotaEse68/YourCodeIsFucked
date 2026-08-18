@@ -10,7 +10,8 @@ Use YCF as the evidence layer before changing a repository. YCF is irreverent in
 ## Workflow
 
 1. Detect the project root and read its package scripts/configuration. Preserve existing uncommitted work; do not reset, stash, or overwrite it.
-2. Start read-only:
+2. Before scoring, check for bundled third-party SDKs that YCF's default ignores (`node_modules`, `vendor`, `dist`, `build`, `coverage`, `.git`, `.ycf`) do not catch. Look for top-level or second-level folders that carry their own license/SDK identity distinct from the project (examples: `freemius`, a payment/analytics SDK, a vendored API client). If found, add them to `ycf.config.yml` under `ignore:` before running audit, so the score reflects the project's own code, not a library it happens to include. This matters most when reviewing an app or plugin you did not author — see [references/reviewing-external-code.md](references/reviewing-external-code.md).
+3. Start read-only:
 
    ```bash
    ycf audit .
@@ -19,15 +20,16 @@ Use YCF as the evidence layer before changing a repository. YCF is irreverent in
    ycf cockpit .
    ```
 
-3. Explain each finding in plain language: what was found, why it matters, risk level, and whether it is safe, review-only, or architectural.
-4. For cleanup, show the plan first:
+   If findings still concentrate overwhelmingly in one folder not already ignored, that is a signal of an undetected vendored SDK — add it to `ignore:` and re-run before reporting a score. Always state what share of findings came from ignored/vendored code versus the project's own, even when no vendor folder needed excluding.
+4. Explain each finding in plain language: what was found, why it matters, risk level, and whether it is safe, review-only, or architectural.
+5. For cleanup, show the plan first:
 
    ```bash
    ycf cleanup . --dry-run
    ```
 
    Only after the user explicitly approves, run `ycf cleanup . --yes`. Confirm the checkpoint, verification result, and Git diff summary. If verification fails, report that YCF rolled back.
-5. For structural work, generate a plan without editing:
+6. For structural work, generate a plan without editing:
 
    ```bash
    ycf refactor . --dry-run
@@ -35,7 +37,7 @@ Use YCF as the evidence layer before changing a repository. YCF is irreverent in
    ```
 
    Never silently apply architectural refactors. Ask the user to approve a specific recommendation and define the verification checks before editing.
-6. Before release, run `ycf release . --dependencies`. Treat medium findings as a review gate and low findings as explicit follow-up items.
+7. Before release, run `ycf release . --dependencies`. Treat medium findings as a review gate and low findings as explicit follow-up items.
 
 ## Stack profiles
 
