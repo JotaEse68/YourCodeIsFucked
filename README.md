@@ -96,6 +96,9 @@ If you don't have Node.js yet, the script tells you to grab it from
 the line again. Once it's done, run `ycf cockpit` inside your project folder for the
 visual dashboard.
 
+**Never opened a terminal at all?** A double-click installer (no terminal required) is
+planned but not built yet — tracked for a future release.
+
 YCF puede darte malas noticias. La diferencia es que te dice dónde están, por qué importan y qué hacer después.
 
 ```text
