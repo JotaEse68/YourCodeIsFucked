@@ -88,6 +88,16 @@ function publicEntryPoints(root: string): Set<string> {
   }
   return entries;
 }
+const reexportPattern = /\bexport\s*(?:\*|\{[^}]*\})\s*from\s*(["'])([^"']+)\1/g;
+function isReExported(root: string, duplicateFile: string): boolean {
+  const duplicateAbs = resolve(root, duplicateFile); const configured = aliases(root);
+  for (const file of walk(root)) {
+    if (resolve(file) === duplicateAbs) continue;
+    const text = readFileSync(file, 'utf8'); let match: RegExpExecArray | null;
+    while ((match = reexportPattern.exec(text))) { const resolved = resolveImport(file, match[2], root, configured); if (resolved && sameModule(resolved, duplicateAbs)) return true; }
+  }
+  return false;
+}
 
 export interface AppliedOperation { operationId: string; changedFiles: string[]; description: string; undo: () => void; }
 export function applyRefactorOperation(target: string, operation: RefactorOperation): AppliedOperation { const root = resolve(target); const id = operation.id;
@@ -113,12 +123,13 @@ export function applyRefactorOperation(target: string, operation: RefactorOperat
   if (operation.kind === 'CONSOLIDATE') {
     const canonical = resolve(root, operation.canonicalFile); const duplicate = resolve(root, operation.duplicateFile);
     const canonicalText = readFileSync(canonical, 'utf8'); const duplicateText = readFileSync(duplicate, 'utf8');
-    if (canonicalText.replace(/\s/g, '') !== duplicateText.replace(/\s/g, '')) throw new Error('SUPERVISED: files are not exact duplicates.');
     const safety = assessRefactorSafety([canonical, duplicate], new Map([[canonical, canonicalText], [duplicate, duplicateText]]));
     if (safety.mode === 'BLOCKED') throw new Error(`BLOCK: ${safety.reason}`);
     if (safety.mode === 'SUPERVISED') throw new Error(`SUPERVISED: ${safety.reason}`);
     const publicEntries = publicEntryPoints(root);
-    if (publicEntries.has(canonical) || publicEntries.has(duplicate)) throw new Error('SUPERVISED: one of these files is a public package entry point (main/exports/bin/types).');
+    if (publicEntries.has(canonical) || publicEntries.has(duplicate)) throw new Error('BLOCKED: one of these files is a public package entry point (main/exports/bin/types); consolidating would change a public contract.');
+    if (isReExported(root, operation.duplicateFile)) throw new Error('BLOCKED: the duplicate file is re-exported (export * / export { X } from) elsewhere; consolidating would change a public contract.');
+    if (canonicalText.replace(/\s/g, '') !== duplicateText.replace(/\s/g, '')) throw new Error('SUPERVISED: files are not exact duplicates.');
     const ref = rewriteReferences(root, operation.duplicateFile, operation.canonicalFile); unlinkSync(duplicate);
     return { operationId: id, changedFiles: [...ref.changed, operation.duplicateFile], description: operation.description, undo: () => { atomicWrite(duplicate, duplicateText); for (const [file, content] of ref.before) atomicWrite(file, content); } };
   }

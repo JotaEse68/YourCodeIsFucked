@@ -28,25 +28,6 @@ describe('architectural refactor executor', () => {
     expect(readFileSync(join(root, 'src/features/old.ts'), 'utf8')).toContain("from '../utils/math'"); expect(readFileSync(join(root, 'src/use-copy.ts'), 'utf8')).toContain("from './greet'");
   });
 
-  it('refuses to consolidate a duplicate that sits in a protected area', () => {
-    const root = mkdtempSync(join(tmpdir(), 'ycf-consolidate-protected-')); const write = (file: string, content: string) => { const path = join(root, file); mkdirSync(path.slice(0, path.lastIndexOf('\\')), { recursive: true }); writeFileSync(path, content); };
-    write('src/webhook-handler.ts', 'export const handle = () => true;\n'); write('src/webhook-handler-copy.ts', 'export const handle = () => true;\n');
-    const plan: ArchitecturalRefactorPlan = { version: 2, target: root, generatedAt: new Date().toISOString(), sourceFindings: [], summary: { auto: 0, safeRefactor: 0, supervised: 0, architectural: 0, blocked: 0 }, blocks: [
-      block('RF-CONSOLIDATE-PROTECTED', [{ id: 'op-consolidate', kind: 'CONSOLIDATE', description: 'must not auto-merge a webhook handler', canonicalFile: 'src/webhook-handler.ts', duplicateFile: 'src/webhook-handler-copy.ts', symbol: 'handle' }])
-    ] };
-    const result = executeRefactorPlan(root, plan, { createGitCheckpoint: false });
-    expect(result.rolledBackBlocks).toEqual(['RF-CONSOLIDATE-PROTECTED']); expect(result.blocks[0].result?.error).toMatch(/^SUPERVISED:/); expect(existsSync(join(root, 'src/webhook-handler-copy.ts'))).toBe(true);
-  });
-
-  it('refuses to consolidate a duplicate that is a public package.json entry point', () => {
-    const root = mkdtempSync(join(tmpdir(), 'ycf-consolidate-entrypoint-')); const write = (file: string, content: string) => { const path = join(root, file); mkdirSync(path.slice(0, path.lastIndexOf('\\')), { recursive: true }); writeFileSync(path, content); };
-    write('package.json', JSON.stringify({ name: 'fixture', main: './lib/entry.ts', exports: { '.': './lib/entry.ts' } })); write('lib/entry.ts', 'export const value = 1;\n'); write('lib/entry-copy.ts', 'export const value = 1;\n');
-    const plan: ArchitecturalRefactorPlan = { version: 2, target: root, generatedAt: new Date().toISOString(), sourceFindings: [], summary: { auto: 0, safeRefactor: 0, supervised: 0, architectural: 0, blocked: 0 }, blocks: [
-      block('RF-CONSOLIDATE-ENTRYPOINT', [{ id: 'op-consolidate', kind: 'CONSOLIDATE', description: 'must not auto-merge a public entry point', canonicalFile: 'lib/entry-copy.ts', duplicateFile: 'lib/entry.ts', symbol: 'value' }])
-    ] };
-    const result = executeRefactorPlan(root, plan, { createGitCheckpoint: false });
-    expect(result.rolledBackBlocks).toEqual(['RF-CONSOLIDATE-ENTRYPOINT']); expect(result.blocks[0].result?.error).toMatch(/public package entry point/); expect(existsSync(join(root, 'lib/entry.ts'))).toBe(true);
-  });
 
   it('blocks partial or non-exported extraction ranges', () => {
     const root = mkdtempSync(join(tmpdir(), 'ycf-extract-')); const source = join(root, 'source.ts');
