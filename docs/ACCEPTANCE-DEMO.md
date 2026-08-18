@@ -7,16 +7,22 @@ executor real. No simula resultados.
 corepack pnpm demo:acceptance
 ```
 
-El flujo demuestra las cinco operaciones reales del executor en un solo fixture:
+El flujo cubre los 12 escenarios de aceptación requeridos:
 
-1. **MOVE**: mover `src/legacy/feature.mjs` a `src/features/feature.mjs`, actualizar el import de `src/app.mjs` y recalcular el import interno hacia `math.mjs`.
-2. **EXTRACT**: extraer `formatTotal` de `src/legacy/text.mjs` a su propio módulo `format-total.mjs`.
-3. **RENAME**: renombrar `greeting.mjs` a `hello.mjs` y actualizar su único consumidor.
-4. **CONSOLIDATE**: fusionar un duplicado exacto (`format-b.mjs`) en el canónico (`format-a.mjs`) y actualizar su consumidor.
-5. Ejecutar `node --test` y los checks de build tras cada bloque.
-6. Crear un bloque que falla de forma controlada (una operación `CREATE` seguida de un `RENAME` sobre un archivo inexistente) y revertirlo de forma aislada — sin tocar los bloques ya verificados.
-7. Ejecutar un bloque independiente adicional para probar que la ejecución sigue adelante después de que otro bloque revierte.
-8. Escribir el diario de checkpoints y un informe en `artifacts/acceptance-demo.md`, incluida la sección "Architecture (before → after)" con el grafo de imports antes y después.
+- **A** — Mover `src/legacy/feature.mjs` a `src/features/feature.mjs` (BLOCK-001, `MOVE`).
+- **B** — Renombrar `src/legacy/greeting.mjs` a `src/legacy/hello.mjs` y actualizar su único consumidor (BLOCK-003, `RENAME`).
+- **C** — Actualizar el import de `src/app.mjs` tras el movimiento del módulo (BLOCK-001).
+- **D** — Recalcular el import interno de `feature.mjs` hacia `math.mjs` tras moverlo (BLOCK-001).
+- **E** — Extraer `formatTotal` de `src/legacy/text.mjs` a `src/legacy/format-total.mjs`, dejando un re-export en el origen (BLOCK-002, `EXTRACT`). El módulo extraído queda dentro del grafo que ejecuta `app.mjs` de verdad — no es solo una comprobación de texto.
+- **F** — Consolidar `src/legacy/format-b.mjs` (duplicado exacto) en `src/legacy/format-a.mjs`, eliminando el duplicado (BLOCK-004, `CONSOLIDATE`).
+- **G** — Ejecutar `node --test` y los checks de build (`fullVerify: true`) tras cada bloque.
+- **H** — Fallo controlado: BLOCK-005 crea un archivo y luego falla deliberadamente (un `RENAME` sobre un archivo inexistente).
+- **I** — Rollback aislado: solo BLOCK-005 se revierte, incluida la operación `CREATE` previa al fallo; los bloques ya verificados no se tocan.
+- **J** — Continuidad tras el fallo de un bloque hermano: BLOCK-006 no depende de BLOCK-005 y se ejecuta y verifica con éxito aunque BLOCK-005 se revierta.
+- **K** — Diff antes/después del fixture completo (Git diff real, no simulado).
+- **L** — Reporte de arquitectura antes/después (`result.before.architecture` / `result.after.architecture`, incluidos ciclos de dependencias), en la sección "Architecture" del informe generado.
+
+Además, el script escribe el diario de checkpoints y un informe en `artifacts/acceptance-demo.md`.
 
 El script termina con error si cualquiera de esas afirmaciones no se cumple.
 

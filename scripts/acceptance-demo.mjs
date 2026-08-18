@@ -53,10 +53,11 @@ assert.match(readFileSync(join(fixture, 'src/features/feature.mjs'), 'utf8'), /\
 assert.match(readFileSync(join(fixture, 'src/legacy/text.mjs'), 'utf8'), /from '\.\/format-total\.mjs'/);
 assert.match(readFileSync(join(fixture, 'src/use-greeting.mjs'), 'utf8'), /\.\/legacy\/hello\.mjs/);
 assert.match(readFileSync(join(fixture, 'src/use-format.mjs'), 'utf8'), /\.\/legacy\/format-a\.mjs/);
+assert.ok(result.before?.architecture && result.after?.architecture, 'L: architecture captured before and after');
 
 const journal = JSON.parse(readFileSync(join(fixture, '.ycf/refactor-checkpoints.json'), 'utf8'));
 const { markdownPath: refactorReportPath } = writeRefactorExecutionReport(fixture, result);
-const architectureSection = readFileSync(refactorReportPath, 'utf8').split('## Architecture (before → after)')[1]?.trim() ?? '(not generated)';
+const architectureSection = readFileSync(refactorReportPath, 'utf8').split('## Architecture')[1]?.split('## Blocks')[0]?.trim() ?? '(not generated)';
 const report = [
   '# YCF acceptance demo', '', `Fixture: ${fixture}`, '',
   `- BLOCK-001 (MOVE): **${journal.blocks[0].status}** — moved a real module and rewrote every static reference to it.`,
