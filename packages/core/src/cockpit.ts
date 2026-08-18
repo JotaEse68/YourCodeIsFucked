@@ -11,11 +11,7 @@ export function openBrowser(file: string): boolean {
   try {
     if (process.platform === 'win32') {
       // Windows may associate .html with Notepad. Prefer an installed browser
-      // explicitly, then fall back to the user's default handler.
-      try {
-        execFileSync('cmd', ['/c', 'start', '', `microsoft-edge:${url}`], { stdio: 'ignore' });
-        return true;
-      } catch { /* Edge protocol unavailable; try executable browsers. */ }
+      // explicitly by checking where.exe, then fall back to the user's default handler.
       for (const browser of ['msedge.exe', 'chrome.exe', 'firefox.exe']) {
         try {
           execFileSync('where.exe', [browser], { stdio: 'ignore' });
