@@ -96,8 +96,14 @@ If you don't have Node.js yet, the script tells you to grab it from
 the line again. Once it's done, run `ycf cockpit` inside your project folder for the
 visual dashboard.
 
-**Never opened a terminal at all?** A double-click installer (no terminal required) is
-planned but not built yet — tracked for a future release.
+**Never opened a terminal at all?** Download `YCF-Launcher-Windows.exe` from
+the [latest release](https://github.com/JotaEse68/YourCodeIsFucked/releases/download/v0.1.15/YCF-Launcher-Windows.exe),
+double-click it, and choose your project folder when it asks — no install, no terminal,
+ever. First run: Windows will say it protected your PC (the binary isn't code-signed
+yet) — click "More info", then "Run anyway".
+
+Mac support is built but not yet verified on a real Mac — check the
+[releases page](https://github.com/JotaEse68/YourCodeIsFucked/releases) for current status.
 
 YCF puede darte malas noticias. La diferencia es que te dice dónde están, por qué importan y qué hacer después.
 
