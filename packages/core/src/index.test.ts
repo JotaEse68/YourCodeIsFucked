@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { aiResidueFindings, audit, cleanupDebugStatements, cleanupDevArtifacts, dependencyAuditPlan, detectStacks, duplicateGroups, impactAnalysis, loadConfig, parseDependencyAudit, refactorPlan, releaseCheckLabel, releaseReadiness, understand, verificationPlan, writeAuditReport, writeReleaseReport, writeUnfuckReport } from './index.js';
+import { aiResidueFindings, audit, buildArchitecturalRefactorPlan, cleanupDebugStatements, cleanupDevArtifacts, dependencyAuditPlan, detectStacks, duplicateGroups, impactAnalysis, loadConfig, parseDependencyAudit, refactorPlan, releaseCheckLabel, releaseReadiness, understand, verificationPlan, writeAuditReport, writeReleaseReport, writeUnfuckReport } from './index.js';
 
 const temporaryDirectories: string[] = [];
 afterEach(() => temporaryDirectories.splice(0).forEach((directory) => rmSync(directory, { recursive: true, force: true })));
@@ -591,6 +591,25 @@ describe('stack detection', () => {
     const spanishPlan = refactorPlan(directory, { language: 'es', audience: 'guided' }).plan;
     expect(spanishPlan).toMatchObject({ language: 'es', audience: 'guided' });
     expect(spanishPlan.recommendations[0].steps[0].instruction).toContain('Lee service.ts');
+  });
+
+  it('includes every refactorable finding as a block, not only duplicates', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    writeFileSync(join(directory, 'ycf.config.yml'), 'refactor:\n  max_function_lines: 3\n');
+    writeFileSync(join(directory, 'Dashboard.tsx'), [
+      "import { useEffect } from 'react';",
+      'export function Dashboard() {',
+      '  useEffect(() => { loadDashboard(); });',
+      "  const heading = 'Dashboard';",
+      '  return <section>{heading}</section>;',
+      '}'
+    ].join('\n'));
+    const plan = buildArchitecturalRefactorPlan(directory);
+    const reviewBlocks = plan.blocks.filter((block) => block.type === 'SUPERVISED_REVIEW');
+    expect(reviewBlocks.length).toBeGreaterThan(0);
+    expect(reviewBlocks[0].mode).toBe('SUPERVISED');
+    expect(reviewBlocks[0].operations).toEqual([]);
   });
 
   it('summarizes release readiness and persists a human-readable report', () => {
