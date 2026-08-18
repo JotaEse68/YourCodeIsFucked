@@ -429,8 +429,8 @@ function dimensionPenalty(findings: Finding[], rules: Set<Finding['ruleId']>): n
 }
 
 function scoreDimensions(target: string, files: string[], findings: Finding[]): AuditReport['score']['dimensions'] {
-  const architecture = Math.max(0, 100 - dimensionPenalty(findings, new Set(['large-source-file', 'long-function', 'large-react-component', 'god-component', 'dead-code', 'duplicate-code', 'similar-duplicate-code', 'high-complexity'])));
-  const maintainability = Math.max(0, 100 - dimensionPenalty(findings, new Set(['unused-import', 'ai-residue', 'suspicious-filename', 'mystery-helper', 'todo-from-hell', 'dependency-nobody-uses', 'unused-production-dependency', 'duplicate-code', 'similar-duplicate-code', 'high-complexity', 'large-source-file', 'long-function'])));
+  const architecture = Math.max(0, 100 - dimensionPenalty(findings, new Set(['large-source-file', 'long-function', 'large-react-component', 'god-component', 'dead-code', 'duplicate-code', 'similar-duplicate-code', 'possible-semantic-duplicate', 'high-complexity'])));
+  const maintainability = Math.max(0, 100 - dimensionPenalty(findings, new Set(['unused-import', 'ai-residue', 'suspicious-filename', 'mystery-helper', 'todo-from-hell', 'dependency-nobody-uses', 'unused-production-dependency', 'duplicate-code', 'similar-duplicate-code', 'possible-semantic-duplicate', 'high-complexity', 'large-source-file', 'long-function'])));
   const security = Math.max(0, 100 - dimensionPenalty(findings, new Set(['sensitive-repository-file', 'sensitive-repository-file-tracked', 'wordpress-hardcoded-config-secret', 'wordpress-wpdb-unprepared-query', 'wordpress-unsanitized-input', 'wordpress-unescaped-output', 'wordpress-rest-route-permission', 'wordpress-ajax-nonce-review', 'wordpress-ajax-capability-review', 'wordpress-sensitive-data-exposure', 'typescript-error-suppression'])));
   const packagePath = join(target, 'package.json');
   const hasTestScript = existsSync(packagePath) && /"test"\s*:/.test(readFileSync(packagePath, 'utf8'));

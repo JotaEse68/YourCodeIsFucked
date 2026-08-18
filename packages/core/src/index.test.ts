@@ -529,14 +529,14 @@ describe('stack detection', () => {
     writeFileSync(second, usernameSource);
     const groups = duplicateGroups(directory, [first, second]);
     expect(groups).toContainEqual(expect.objectContaining({ kind: 'similar', certainty: 'likely', lines: 6, occurrences: [{ file: 'email.js', startLine: 1, endLine: 6 }, { file: 'username.js', startLine: 1, endLine: 6 }] }));
-    expect(groups).toContainEqual(expect.objectContaining({ kind: 'ast', certainty: 'likely', similarity: 1, occurrences: [{ file: 'email.js', startLine: 1, endLine: 6 }, { file: 'username.js', startLine: 1, endLine: 6 }] }));
+    expect(groups).toContainEqual(expect.objectContaining({ kind: 'semantic', certainty: 'possible', similarity: 1, occurrences: [{ file: 'email.js', startLine: 1, endLine: 6 }, { file: 'username.js', startLine: 1, endLine: 6 }] }));
     expect(audit(directory).findings).toContainEqual(expect.objectContaining({ ruleId: 'similar-duplicate-code', risk: 'report-only' }));
-    expect(audit(directory).findings).toContainEqual(expect.objectContaining({ ruleId: 'ast-duplicate-code', risk: 'report-only' }));
+    expect(audit(directory).findings).toContainEqual(expect.objectContaining({ ruleId: 'possible-semantic-duplicate', risk: 'report-only' }));
     expect(readFileSync(first, 'utf8')).toBe(emailSource);
     expect(readFileSync(second, 'utf8')).toBe(usernameSource);
   });
 
-  it('reports functions with the same structural shape as an AST duplicate even when line-window matching misses them', () => {
+  it('reports functions with the same structural shape as a possible semantic duplicate even when line-window matching misses them', () => {
     const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
     temporaryDirectories.push(directory);
     const first = join(directory, 'sum.js');
@@ -544,8 +544,19 @@ describe('stack detection', () => {
     writeFileSync(first, ['function sum(items) {', '  let result = 0;', '  for (const item of items) {', '    result = result + item;', '  }', '  return result;', '}'].join('\n'));
     writeFileSync(second, ['function total(values) {', '  let accumulator = 0;', '  for (const value of values) {', '    accumulator = accumulator + value;', '  }', '  return accumulator;', '}'].join('\n'));
     const groups = duplicateGroups(directory, [first, second]);
-    expect(groups).toContainEqual(expect.objectContaining({ kind: 'ast', certainty: 'likely', occurrences: [{ file: 'sum.js', startLine: 1, endLine: 7 }, { file: 'total.js', startLine: 1, endLine: 7 }] }));
+    expect(groups).toContainEqual(expect.objectContaining({ kind: 'semantic', certainty: 'possible', occurrences: [{ file: 'sum.js', startLine: 1, endLine: 7 }, { file: 'total.js', startLine: 1, endLine: 7 }] }));
     expect(readFileSync(first, 'utf8')).toContain('function sum'); expect(readFileSync(second, 'utf8')).toContain('function total');
+  });
+
+  it('also detects a possible semantic duplicate between two arrow functions, not just function declarations', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    const first = join(directory, 'double.js');
+    const second = join(directory, 'twice.js');
+    writeFileSync(first, ['export const double = (value) => {', '  if (value < 0) throw new Error("negative");', '  const result = value * 2;', '  return result;', '};'].join('\n'));
+    writeFileSync(second, ['export const twice = (amount) => {', '  if (amount < 0) throw new Error("negative");', '  const outcome = amount * 2;', '  return outcome;', '};'].join('\n'));
+    const groups = duplicateGroups(directory, [first, second]);
+    expect(groups).toContainEqual(expect.objectContaining({ kind: 'semantic', certainty: 'possible', occurrences: [{ file: 'double.js', startLine: 1, endLine: 5 }, { file: 'twice.js', startLine: 1, endLine: 5 }] }));
   });
 
   it('creates a verification plan only for scripts the project declares', () => {
