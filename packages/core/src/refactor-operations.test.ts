@@ -51,3 +51,14 @@ describe('CONSOLIDATE safety', () => {
     expect(existsSync(join(target, 'lib/entry.ts'))).toBe(true);
   });
 });
+
+describe('EXTRACT relatedTestFiles', () => {
+  it('identifies test files that reference the extracted export', () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-extract-'));
+    const write = (file: string, content: string) => { mkdirSync(join(target, file, '..'), { recursive: true }); writeFileSync(join(target, file), content, 'utf8'); };
+    write('src/math.ts', 'export function add(a: number, b: number): number {\n  return a + b;\n}\n');
+    write('src/math.test.ts', "import { add } from './math.js';\nimport { test } from 'node:test';\ntest('adds', () => add(1, 2));\n");
+    const result = applyRefactorOperation(target, { id: 'op-1', kind: 'EXTRACT', description: 'test', sourceFile: 'src/math.ts', targetFile: 'src/add.ts', range: { startLine: 1, endLine: 3 }, exportedNames: ['add'] });
+    expect(result.relatedTestFiles).toContain('src/math.test.ts');
+  });
+});

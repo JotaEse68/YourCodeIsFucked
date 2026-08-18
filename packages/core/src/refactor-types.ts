@@ -25,7 +25,7 @@ export interface RefactorBlock {
   result?: { changedFiles: string[]; diffSummary: string; verificationPassed: boolean; error?: string; verification?: unknown };
 }
 
-export interface OperationRecord { operationId: string; kind: RefactorOperationKind; changedFiles: string[]; description: string; undone: boolean; }
+export interface OperationRecord { operationId: string; kind: RefactorOperationKind; changedFiles: string[]; description: string; relatedTestFiles: string[]; undone: boolean; }
 export interface RollbackEvent { blockId: string; reason: string; operationsUndone: string[]; isolated: true; }
 export interface RefactorExecutionReport {
   version: 2; target: string; startedAt: string; completedAt: string; status: 'planned' | 'completed' | 'partial' | 'failed';

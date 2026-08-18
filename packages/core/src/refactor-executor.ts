@@ -27,7 +27,7 @@ export function executeRefactorPlan(target: string, plan: ArchitecturalRefactorP
     block.status = 'RUNNING'; const applied: AppliedOperation[] = []; const changed = new Set<string>();
     updateBlockCheckpoint(checkpoints, block.id, 'RUNNING');
     try {
-      for (const operation of block.operations) { const result = applyRefactorOperation(target, operation); applied.push(result); result.changedFiles.forEach((file) => changed.add(file)); operationLog.push({ operationId: result.operationId, kind: operation.kind, changedFiles: result.changedFiles, description: result.description, undone: false }); }
+      for (const operation of block.operations) { const result = applyRefactorOperation(target, operation); applied.push(result); result.changedFiles.forEach((file) => changed.add(file)); operationLog.push({ operationId: result.operationId, kind: operation.kind, changedFiles: result.changedFiles, description: result.description, relatedTestFiles: result.relatedTestFiles, undone: false }); }
       const verification = runVerification(target, block, options.fullVerify === true); block.result = { changedFiles: [...changed], diffSummary: diffSummary(target), verificationPassed: verification.passed, verification };
       if (!verification.passed) throw new Error('Verification failed.');
       block.status = 'VERIFIED'; keptBlocks.push(block.id); updateBlockCheckpoint(checkpoints, block.id, 'VERIFIED', { changedFiles: [...changed], operationIds: applied.map((operation) => operation.operationId) });

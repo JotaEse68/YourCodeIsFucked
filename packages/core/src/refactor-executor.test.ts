@@ -94,6 +94,14 @@ describe('architectural refactor executor', () => {
   });
 
   describe('import resolution during MOVE', () => {
+    it('resolves a .js specifier that actually points to a .ts source file (Node16/NodeNext convention), preserving the .js specifier after the move', () => {
+      const root = mkdtempSync(join(tmpdir(), 'ycf-node-next-')); const write = (file: string, content: string) => { const path = join(root, file); mkdirSync(path.slice(0, path.lastIndexOf('\\')), { recursive: true }); writeFileSync(path, content); };
+      write('src/utils/math.ts', 'export const add = (a: number, b: number) => a + b;\n'); write('src/app.ts', "import { add } from './utils/math.js';\nconsole.log(add(1, 2));\n");
+      const plan: ArchitecturalRefactorPlan = { version: 2, target: root, generatedAt: new Date().toISOString(), sourceFindings: [], summary: { auto: 1, safeRefactor: 1, supervised: 0, architectural: 0, blocked: 0 }, blocks: [block('RF-NODE-NEXT', [{ id: 'op-move', kind: 'MOVE', description: 'move a .ts module referenced with a .js specifier', source: 'src/utils/math.ts', destination: 'src/lib/math.ts', updateImports: true }])] };
+      const result = executeRefactorPlan(root, plan, { createGitCheckpoint: false });
+      expect(result.keptBlocks).toEqual(['RF-NODE-NEXT']); expect(readFileSync(join(root, 'src/app.ts'), 'utf8')).toContain("from './lib/math.js'");
+    });
+
     it('rewrites a tsconfig path alias to a relative specifier', () => {
       const root = mkdtempSync(join(tmpdir(), 'ycf-alias-')); const write = (file: string, content: string) => { const path = join(root, file); mkdirSync(path.slice(0, path.lastIndexOf('\\')), { recursive: true }); writeFileSync(path, content); };
       write('tsconfig.json', JSON.stringify({ compilerOptions: { baseUrl: '.', paths: { '@utils/*': ['src/utils/*'] } } })); write('src/utils/math.ts', 'export const add = (a: number, b: number) => a + b;\n'); write('src/app.ts', "import { add } from '@utils/math';\nconsole.log(add(1, 2));\n");
