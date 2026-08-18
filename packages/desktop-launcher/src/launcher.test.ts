@@ -8,15 +8,29 @@ const temporaryDirectories: string[] = [];
 afterEach(() => temporaryDirectories.splice(0).forEach((directory) => rmSync(directory, { recursive: true, force: true })));
 
 describe('launchCockpitFor', () => {
-  it('writes a self-contained cockpit HTML file and starts a token-protected local server for the chosen folder', async () => {
+  it('starts a token-gated server that serves a chooser menu, then runs the requested read-only action live', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'ycf-launcher-'));
     temporaryDirectories.push(directory);
     writeFileSync(join(directory, 'index.js'), 'export const value = 1;');
-    const { cockpitPath, url, close } = launchCockpitFor(directory);
+    const { url, menuUrl, close } = launchCockpitFor(directory);
     try {
-      expect(cockpitPath.endsWith(join('.ycf', 'cockpit.html'))).toBe(true);
-      const response = await fetch(`${url}/plan/audit`, { headers: { 'x-ycf-token': 'wrong-token' } });
-      expect(response.status).toBe(403);
+      expect(menuUrl.startsWith(`${url}/menu?token=`)).toBe(true);
+      const token = new URL(menuUrl).searchParams.get('token');
+
+      const menuResponse = await fetch(menuUrl);
+      expect(menuResponse.status).toBe(200);
+      expect(await menuResponse.text()).toContain('Analyze my project');
+
+      const auditResponse = await fetch(`${url}/run/audit?token=${token}`);
+      expect(auditResponse.status).toBe(200);
+      expect(await auditResponse.text()).toContain('YCF — cockpit');
+
+      const releaseResponse = await fetch(`${url}/run/release?token=${token}`);
+      expect(releaseResponse.status).toBe(200);
+      expect(await releaseResponse.text()).toMatch(/READY|REVIEW REQUIRED/);
+
+      const badTokenResponse = await fetch(`${url}/run/audit?token=wrong`);
+      expect(badTokenResponse.status).toBe(403);
     } finally {
       close();
     }
