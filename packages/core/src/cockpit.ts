@@ -31,7 +31,7 @@ export function openBrowser(file: string): boolean {
 // reachable from another machine) and requires an exact per-session token on every
 // request via the x-ycf-token header. It exposes only read-only plan endpoints --
 // there is no apply/execute/write endpoint here or anywhere reachable from it.
-export function startCockpitServer(target: string, port: number): { url: string; token: string; close: () => void } {
+export function startCockpitServer(target: string, port: number, onError?: (error: Error) => void): { url: string; token: string; close: () => void } {
   const token = randomBytes(16).toString('hex');
   const server = createServer((req, res) => {
     // The cockpit HTML is opened via file:// (or occasionally served on a different
@@ -48,6 +48,7 @@ export function startCockpitServer(target: string, port: number): { url: string;
     if (url.pathname === '/plan/architectural') { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(buildArchitecturalRefactorPlan(target))); return; }
     res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'not found' }));
   });
+  server.on('error', onError ?? (() => {}));
   server.listen(port, '127.0.0.1');
   return { url: `http://127.0.0.1:${port}`, token, close: () => server.close() };
 }
