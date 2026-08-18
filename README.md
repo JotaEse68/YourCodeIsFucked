@@ -78,6 +78,24 @@ cd your-project
 ycf audit
 ```
 
+**Never used a terminal before?** One line installs Node.js-aware YCF and tells you
+exactly what to type next — nothing else to configure.
+
+```bash
+# macOS / Linux
+curl -fsSL https://raw.githubusercontent.com/JotaEse68/YourCodeIsFucked/main/install.sh | sh
+```
+
+```powershell
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/JotaEse68/YourCodeIsFucked/main/install.ps1 | iex
+```
+
+If you don't have Node.js yet, the script tells you to grab it from
+[nodejs.org](https://nodejs.org) first (it won't install anything silently) — then run
+the line again. Once it's done, run `ycf cockpit` inside your project folder for the
+visual dashboard.
+
 YCF puede darte malas noticias. La diferencia es que te dice dónde están, por qué importan y qué hacer después.
 
 ```text
