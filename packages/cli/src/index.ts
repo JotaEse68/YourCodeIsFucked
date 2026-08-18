@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { mkdirSync, existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { join, relative, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
@@ -35,6 +37,31 @@ function openBrowser(file: string): boolean {
     else execFileSync('xdg-open', [url], { stdio: 'ignore' });
     return true;
   } catch { return false; }
+}
+
+// Local, read-only re-check server for the Cockpit. Binds to 127.0.0.1 only (never
+// reachable from another machine) and requires an exact per-session token on every
+// request via the x-ycf-token header. It exposes only read-only plan endpoints --
+// there is no apply/execute/write endpoint here or anywhere reachable from it.
+function startCockpitServer(target: string, port: number): { url: string; token: string; close: () => void } {
+  const token = randomBytes(16).toString('hex');
+  const server = createServer((req, res) => {
+    // The cockpit HTML is opened via file:// (or occasionally served on a different
+    // port), so the browser treats every request here as cross-origin and preflights
+    // it because of the custom x-ycf-token header. The per-session random token, not
+    // the origin, is what gates access -- this server only ever binds to loopback.
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'x-ycf-token');
+    if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+    const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+    if (req.headers['x-ycf-token'] !== token) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'invalid token' })); return; }
+    if (url.pathname === '/plan/audit') { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(audit(target))); return; }
+    if (url.pathname === '/plan/refactor') { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(refactorPlan(target))); return; }
+    if (url.pathname === '/plan/architectural') { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(buildArchitecturalRefactorPlan(target))); return; }
+    res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'not found' }));
+  });
+  server.listen(port, '127.0.0.1');
+  return { url: `http://127.0.0.1:${port}`, token, close: () => server.close() };
 }
 
 const defaultConfig = `version: 1\n\nmode: balanced\n\nsafety:\n  require_git: true\n  checkpoints: true\n  protect_public_api: true\n  protect_database_schema: true\n\nignore:\n  - node_modules\n  - vendor\n  - dist\n  - build\n  - .git\n`;
@@ -303,7 +330,7 @@ function cockpitHtml(report: ReturnType<typeof understand>, auditReport: ReturnT
 }
 
 function cockpitActionsHtml(): string {
-  return `<section class="actions"><h2>What do you want YCF to do?</h2><p class="hint">YCF never runs anything from this page by itself. Pick an action, and it gives you the exact command to run in your terminal.</p><div class="action-buttons"><button data-ycf-action="🔍 Analyze my project" data-ycf-command="ycf audit .">🔍 Analyze my project</button><button data-ycf-action="🗺 Understand my code" data-ycf-command="ycf explain .">🗺 Understand my code</button><button data-ycf-action="🧹 Unfuck safe stuff" data-ycf-command="ycf cleanup . --dry-run">🧹 Unfuck safe stuff</button><button data-ycf-action="🔧 Organize &amp; refactor" data-ycf-command="ycf refactor . --dry-run">🔧 Organize &amp; refactor</button><button data-ycf-action="🚀 Is this ready to ship?" data-ycf-command="ycf release .">🚀 Is this ready to ship?</button></div><div id="ycf-action-result" class="action-result" style="display:none"><p id="ycf-action-label"></p><code id="ycf-action-command"></code><p id="ycf-action-status" class="hint"></p></div><script>document.querySelectorAll('[data-ycf-action]').forEach((button)=>button.onclick=()=>{const command=button.dataset.ycfCommand;const box=document.querySelector('#ycf-action-result');box.style.display='block';document.querySelector('#ycf-action-label').textContent=button.dataset.ycfAction+' — run this in your terminal, inside your project folder:';const commandEl=document.querySelector('#ycf-action-command');commandEl.textContent=command;const status=document.querySelector('#ycf-action-status');navigator.clipboard?.writeText(command).then(()=>{status.textContent='Copied to your clipboard — just paste it in your terminal.';}).catch(()=>{const range=document.createRange();range.selectNodeContents(commandEl);const selection=window.getSelection();if(selection){selection.removeAllRanges();selection.addRange(range);}status.textContent="Couldn't copy automatically — it's selected above, press Ctrl+C / Cmd+C.";});});</script></section>`;
+  return `<section class="actions"><h2>What do you want YCF to do?</h2><p class="hint">YCF never runs anything from this page by itself. Pick an action, and it gives you the exact command to run in your terminal.</p><div class="action-buttons"><button data-ycf-action="🔍 Analyze my project" data-ycf-command="ycf audit ." data-ycf-plan="audit">🔍 Analyze my project</button><button data-ycf-action="🗺 Understand my code" data-ycf-command="ycf explain .">🗺 Understand my code</button><button data-ycf-action="🧹 Unfuck safe stuff" data-ycf-command="ycf cleanup . --dry-run">🧹 Unfuck safe stuff</button><button data-ycf-action="🔧 Organize &amp; refactor" data-ycf-command="ycf refactor . --dry-run" data-ycf-plan="refactor">🔧 Organize &amp; refactor</button><button data-ycf-action="🚀 Is this ready to ship?" data-ycf-command="ycf release .">🚀 Is this ready to ship?</button></div><div id="ycf-action-result" class="action-result" style="display:none"><p id="ycf-action-label"></p><code id="ycf-action-command"></code><p id="ycf-action-status" class="hint"></p></div><script>document.querySelectorAll('[data-ycf-action]').forEach((button)=>button.onclick=async ()=>{const command=button.dataset.ycfCommand;const box=document.querySelector('#ycf-action-result');box.style.display='block';document.querySelector('#ycf-action-label').textContent=button.dataset.ycfAction+' — run this in your terminal, inside your project folder:';const commandEl=document.querySelector('#ycf-action-command');commandEl.textContent=command;const status=document.querySelector('#ycf-action-status');const cockpit=window.__YCF_COCKPIT__;if(cockpit && button.dataset.ycfPlan){try{const response=await fetch(cockpit.base+'/plan/'+button.dataset.ycfPlan,{headers:{'x-ycf-token':cockpit.token}});const plan=await response.json();status.textContent='Live read-only re-check ran — see the plan below. To apply anything, run the command above in your terminal (YCF never applies changes from this page).';const pre=document.createElement('pre');pre.style.cssText='max-height:240px;overflow:auto;background:#0f172a;padding:10px;border-radius:8px;margin-top:8px';pre.textContent=JSON.stringify(plan,null,2);box.appendChild(pre);return;}catch(error){/* server not running (e.g. --no-server) — fall through to copy-only */}}navigator.clipboard?.writeText(command).then(()=>{status.textContent='Copied to your clipboard — just paste it in your terminal.';}).catch(()=>{const range=document.createRange();range.selectNodeContents(commandEl);const selection=window.getSelection();if(selection){selection.removeAllRanges();selection.addRange(range);}status.textContent="Couldn't copy automatically — it's selected above, press Ctrl+C / Cmd+C.";});});</script></section>`;
 }
 
 program.command('map [target]').description('Generate and summarize the repository architecture graph.').option('--json', 'Emit the graph as JSON.').option('--html', 'Write a self-contained visual map to .ycf/architecture.html.').action((target = '.', options) => {
@@ -321,16 +348,25 @@ program.command('map [target]').description('Generate and summarize the reposito
   if (options.html) { const htmlPath = join(report.target, '.ycf', 'architecture.html'); writeFileSync(htmlPath, architectureHtml(report), 'utf8'); console.log(`Visual map: ${htmlPath}`); }
 });
 
-program.command('cockpit [target]').description('Write and open a self-contained visual audit and impact cockpit.').option('--no-open', 'Write the cockpit without opening a browser.').action((target = '.', options) => {
-  const report = understand(target);
-  const auditReport = audit(target);
+program.command('cockpit [target]').description('Write and open a self-contained visual audit and impact cockpit with live, read-only re-checks.').option('--no-open', 'Write the cockpit without opening a browser.').option('--no-server', 'Write a fully static cockpit with no local server (copy-command only).').action((target = '.', options) => {
+  const resolvedTarget = resolve(target);
+  const report = understand(resolvedTarget);
+  const auditReport = audit(resolvedTarget);
   const cockpitPath = join(report.target, '.ycf', 'cockpit.html');
-  const cockpit = cockpitHtml(report, auditReport, verificationPlan(report.target)).replace('</body>', `${cockpitActionsHtml()}</body>`);
+  let bootstrap = '';
+  let server: { url: string; token: string; close: () => void } | undefined;
+  if (options.server !== false) {
+    server = startCockpitServer(resolvedTarget, 4287);
+    bootstrap = `<script>window.__YCF_COCKPIT__=${JSON.stringify({ token: server.token, base: server.url })};</script>`;
+    process.on('SIGINT', () => { server?.close(); process.exit(0); });
+    console.log(`YCF — local read-only server running at ${server.url} (Ctrl+C to stop).`);
+  }
+  const cockpit = cockpitHtml(report, auditReport, verificationPlan(resolvedTarget)).replace('</body>', `${bootstrap}${cockpitActionsHtml()}</body>`);
   writeFileSync(cockpitPath, cockpit, 'utf8');
   console.log('YCF — cockpit ready.');
   if (options.open !== false && openBrowser(cockpitPath)) console.log(`Opened in your browser: ${cockpitPath}`);
   else console.log(`Open this file in your browser: ${cockpitPath}`);
-  console.log('Read-only: it does not modify source files or start a server.');
+  console.log(server ? 'Read-only: it does not modify source files. The local server only serves read-only plan data and never applies changes.' : 'Read-only: it does not modify source files or start a server.');
 });
 
 program.command('impact <module> [target]').description('Explain the statically visible change surface of one module without modifying files.').option('--json', 'Emit the complete impact report as JSON.').action((module, target = '.', options) => {
