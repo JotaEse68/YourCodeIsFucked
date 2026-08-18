@@ -102,6 +102,11 @@ double-click it, and choose your project folder when it asks — no install, no 
 ever. First run: Windows will say it protected your PC (the binary isn't code-signed
 yet) — click "More info", then "Run anyway".
 
+The binary isn't signed, so this is the only integrity check available: its SHA-256 is
+`f8682daab5a008118edcd05a108803627e7fd29df4609449e752f6cbb14a45f1`. Verify it with
+`certutil -hashfile YCF-Launcher-Windows.exe SHA256` (Windows) if you want to confirm
+what you downloaded matches what's published here.
+
 Mac support is built but not yet verified on a real Mac — check the
 [releases page](https://github.com/JotaEse68/YourCodeIsFucked/releases) for current status.
 
