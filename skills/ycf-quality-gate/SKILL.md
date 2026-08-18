@@ -36,7 +36,7 @@ Use YCF as the evidence layer before changing a repository. YCF is irreverent in
    ycf verify .
    ```
 
-   Never silently apply architectural refactors. Ask the user to approve a specific recommendation and define the verification checks before editing.
+   Before proposing where anything should move, load the organization conventions in [references/stack-profiles.md](references/stack-profiles.md) for the detected stack and check what structure the repository already partially follows via `ycf understand .` -- extend an existing convention before inventing a new one. Present the exact old-path -> new-path mapping and the reason for each move, one block at a time. Never silently apply architectural refactors. Ask the user to approve a specific recommendation and define the verification checks before editing.
 7. Before release, run `ycf release . --dependencies`. Treat medium findings as a review gate and low findings as explicit follow-up items.
 
 ## Stack profiles
