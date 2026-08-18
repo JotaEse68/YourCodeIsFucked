@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import assert from 'node:assert/strict';
-import { executeRefactorPlan, writeRefactorExecutionReport } from '../packages/core/dist/index.js';
+import { executeRefactorPlan, writeRefactorExecutionReport, demoRefactorBlock } from '../packages/core/dist/index.js';
 
 const fixture = mkdtempSync(join(tmpdir(), 'ycf-acceptance-'));
 const write = (file, content) => { const path = join(fixture, file); mkdirSync(join(path, '..'), { recursive: true }); writeFileSync(path, content, 'utf8'); };
@@ -23,7 +23,7 @@ write('src/use-format.mjs', "import { formatName } from './legacy/format-b.mjs';
 write('test/app.test.mjs', "import assert from 'node:assert/strict';\nimport { test } from 'node:test';\nimport { total, label } from '../src/app.mjs';\ntest('real fixture still works after the move', () => assert.equal(total, 3));\ntest('the extracted module resolves at runtime under native ESM', () => assert.equal(label, 'demo'));\n");
 git(['init', '-q']); git(['config', 'user.email', 'ycf-demo@example.com']); git(['config', 'user.name', 'YCF Acceptance Demo']); git(['add', '.']); git(['commit', '-qm', 'fixture: initial working project']);
 
-const block = (id, operations, dependencies = []) => ({ id, type: 'ACCEPTANCE_DEMO', goal: id, reason: 'reproducible acceptance fixture', risk: 'LOW', confidence: 99, mode: 'SAFE', files: [], dependencies, affectedModules: [], preconditions: [], operations, validation: [], rollback: [{ kind: 'undo-operation', description: 'Undo this block operation journal.' }], status: 'PLANNED' });
+const block = (id, operations, dependencies = []) => demoRefactorBlock(id, operations, { type: 'ACCEPTANCE_DEMO', reason: 'reproducible acceptance fixture', dependencies });
 const plan = { version: 2, target: fixture, generatedAt: new Date().toISOString(), sourceFindings: [], summary: { auto: 5, safeRefactor: 5, supervised: 0, architectural: 0, blocked: 0 }, blocks: [
   block('BLOCK-001', [{ id: 'move-feature', kind: 'MOVE', description: 'Move feature and update every static reference', source: 'src/legacy/feature.mjs', destination: 'src/features/feature.mjs', updateImports: true }]),
   block('BLOCK-002', [{ id: 'extract-format-total', kind: 'EXTRACT', description: 'Extract formatTotal into its own module', sourceFile: 'src/legacy/text.mjs', targetFile: 'src/legacy/format-total.mjs', range: { startLine: 1, endLine: 3 }, exportedNames: ['formatTotal'] }]),

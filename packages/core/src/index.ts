@@ -12,12 +12,14 @@ import { typescriptFindings } from './typescript.js';
 import { impactAnalysis as createImpactAnalysis } from './impact.js';
 import { duplicateFindings, duplicateGroups } from './duplicates.js';
 import { isExternalConnectionFile } from './refactor-safety.js';
+import { lineAt, lineNumbers } from './text-utils.js';
 export type { ArchitecturalRefactorPlan, RefactorBlock, RefactorExecutionReport, RefactorOperation, RefactorBlockStatus, RiskLevel, SafetyMode, RefactorOperationKind, OperationRecord, RollbackEvent, RollbackStep, VerificationStep } from './refactor-types.js';
 export { applyRefactorOperation } from './refactor-operations.js';
 export { executeRefactorPlan } from './refactor-executor.js';
 export { readCheckpointJournal } from './refactor-checkpoints.js';
 export { buildArchitecturalRefactorPlan } from './refactor-planner.js';
 export { writeRefactorExecutionReport, architectureDiff } from './reporters.js';
+export { demoRefactorBlock } from './refactor-block-fixture.js';
 import type { AuditReport, CleanupReport, DuplicateGroup, Finding, ImpactReport, RefactorPlan, Stack, UnderstandReport, YcfConfig } from './types.js';
 export type { AuditReport, CleanupReport, DependencyAuditReport, DependencyVulnerability, DuplicateGroup, Finding, FindingRisk, GitCheckpoint, GitState, ImpactReport, RefactorPlan, RefactorRecommendation, ReleaseCheck, ReleaseReport, Stack, UnderstandReport, UnfuckReport, VerificationCheck, VerificationReport, YcfConfig } from './types.js';
 export { defaultConfig, loadConfig } from './config.js';
@@ -91,13 +93,6 @@ function sensitiveRepositoryFindings(target: string, config: YcfConfig): Finding
   return findings;
 }
 
-function lineNumbers(content: string, expression: RegExp): number[] {
-  return content.split(/\r?\n/).flatMap((line, index) => expression.test(line) ? [index + 1] : []);
-}
-
-function lineAt(content: string, offset: number): number {
-  return content.slice(0, offset).split(/\r?\n/).length;
-}
 
 function complexityRegions(content: string): Array<{ name: string; start: number; end: number; body: string }> {
   const regions: Array<{ name: string; start: number; end: number; body: string }> = [];

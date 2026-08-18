@@ -1,0 +1,13 @@
+version: 1
+mode: balanced
+language: en
+audience: technical
+
+# max_file_lines raised from the 700 default: packages/cli/src/index.ts is a single
+# Commander entrypoint with ~20 commands (each a self-contained .action() handler) --
+# reviewed and consciously accepted as one file for now rather than split across
+# per-command modules. Revisit if it keeps growing past this.
+refactor:
+  max_file_lines: 800
+  max_function_lines: 80
+  max_complexity: 15

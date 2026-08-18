@@ -13,7 +13,7 @@ export function findGitRoot(start: string): GitState {
   }
 }
 
-function git(target: string, args: string[]): string { return execFileSync('git', ['-C', target, ...args], { encoding: 'utf8' }).trim(); }
+export function git(target: string, args: string[]): string { return execFileSync('git', ['-C', target, ...args], { encoding: 'utf8' }).trim(); }
 function gitRootOrThrow(target: string): string {
   const state = findGitRoot(target);
   if (!state.detected || !state.root) throw new Error('This operation requires a Git repository.');

@@ -618,12 +618,12 @@ describe('stack detection', () => {
     const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
     temporaryDirectories.push(directory);
     writeFileSync(join(directory, 'ycf.config.yml'), 'refactor:\n  max_function_lines: 3\n');
-    writeFileSync(join(directory, 'Dashboard.tsx'), [
+    writeFileSync(join(directory, 'Sidebar.tsx'), [
       "import { useEffect } from 'react';",
-      'export function Dashboard() {',
-      '  useEffect(() => { loadDashboard(); });',
-      "  const heading = 'Dashboard';",
-      '  return <section>{heading}</section>;',
+      'export function Sidebar() {',
+      '  useEffect(() => { loadSidebarData(); });',
+      "  const title = 'Sidebar';",
+      '  return <aside>{title}</aside>;',
       '}'
     ].join('\n'));
     const plan = buildArchitecturalRefactorPlan(directory);

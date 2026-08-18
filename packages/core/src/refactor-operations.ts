@@ -1,14 +1,14 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync, renameSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, renameSync } from 'node:fs';
 import { dirname, extname, relative, resolve } from 'node:path';
 import ts from 'typescript';
 import type { RefactorOperation } from './refactor-types.js';
 import { assessRefactorSafety } from './refactor-safety.js';
+import { atomicWrite } from './fs-atomic.js';
 
 const extensions = ['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.php']; const ignored = new Set(['node_modules', 'vendor', 'dist', 'build', '.git', '.ycf']);
 function walk(directory: string): string[] { const out: string[] = []; for (const entry of readdirSync(directory)) { if (ignored.has(entry)) continue; const file = resolve(directory, entry); const info = statSync(file); if (info.isDirectory()) out.push(...walk(file)); else if (extensions.includes(extname(file))) out.push(file); } return out; }
 function stripExt(file: string): string { return file.replace(/\.(?:[cm]?js|jsx|tsx?|php)$/i, ''); }
 function sameModule(a: string, b: string): boolean { return stripExt(resolve(a)).toLowerCase() === stripExt(resolve(b)).toLowerCase(); }
-function atomicWrite(file: string, content: string): void { const temp = `${file}.ycf-tmp-${process.pid}`; writeFileSync(temp, content, 'utf8'); renameSync(temp, file); }
 function relativeSpecifier(importer: string, destination: string, original: string): string { const next = relative(dirname(importer), destination).replaceAll('\\', '/'); const value = next.startsWith('.') ? next : `./${next}`; const originalHasExt = /\.(?:[cm]?js|jsx|tsx?|php)$/i.test(original); if (!originalHasExt) return stripExt(value); const originalExt = original.match(/(\.[^.]+)$/)?.[1] ?? ''; return `${stripExt(value)}${originalExt}`; }
 // TypeScript specifiers never carry a .ts/.tsx extension (the compiler rejects it under
 // classic/bundler resolution); JS-family specifiers need their real extension so the

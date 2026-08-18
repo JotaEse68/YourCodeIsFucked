@@ -1,14 +1,13 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { git } from './git.js';
+import { atomicWrite } from './fs-atomic.js';
 
 export type PersistentBlockStatus = 'PENDING' | 'RUNNING' | 'VERIFIED' | 'ROLLED_BACK' | 'BLOCKED';
 export interface PersistentBlockCheckpoint { blockId: string; status: PersistentBlockStatus; ref?: string; commit?: string; startedAt?: string; updatedAt: string; changedFiles: string[]; operationIds: string[]; error?: string; }
 export interface PersistentCheckpointJournal { version: 1; runId: string; target: string; createdAt: string; updatedAt: string; baseCommit?: string; blocks: PersistentBlockCheckpoint[]; }
 export interface CheckpointContext { root: string; path: string; currentPath: string; journal: PersistentCheckpointJournal; }
 
-function git(root: string, args: string[]): string { return execFileSync('git', ['-C', root, ...args], { encoding: 'utf8' }).trim(); }
-function atomicWrite(file: string, content: string): void { const temp = `${file}.ycf-tmp-${process.pid}`; writeFileSync(temp, content, 'utf8'); renameSync(temp, file); }
 function persist(context: CheckpointContext): void { context.journal.updatedAt = new Date().toISOString(); const serialized = `${JSON.stringify(context.journal, null, 2)}\n`; atomicWrite(context.path, serialized); atomicWrite(context.currentPath, serialized); }
 function checkpointRef(runId: string, blockId: string): string { return `refs/ycf/blocks/${runId}/${blockId}/before`; }
 

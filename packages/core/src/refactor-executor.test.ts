@@ -6,9 +6,10 @@ import { describe, expect, it } from 'vitest';
 import { executeRefactorPlan } from './refactor-executor.js';
 import { beginCheckpointJournal, readCheckpointJournal, updateBlockCheckpoint } from './refactor-checkpoints.js';
 import { writeRefactorExecutionReport } from './reporters.js';
+import { demoRefactorBlock } from './refactor-block-fixture.js';
 import type { ArchitecturalRefactorPlan, RefactorBlock } from './refactor-types.js';
 
-const block = (id: string, operations: RefactorBlock['operations'], dependencies: string[] = []): RefactorBlock => ({ id, type: 'DEMO', goal: id, reason: 'reproducible executor test', risk: 'LOW', confidence: 99, mode: 'SAFE', files: [], dependencies, affectedModules: [], preconditions: [], operations, validation: [], rollback: [{ kind: 'undo-operation', description: 'inverse operation journal' }], status: 'PLANNED' });
+const block = (id: string, operations: RefactorBlock['operations'], dependencies: string[] = []): RefactorBlock => demoRefactorBlock(id, operations, { type: 'DEMO', reason: 'reproducible executor test', rollbackDescription: 'inverse operation journal', dependencies });
 
 describe('architectural refactor executor', () => {
   it('moves, recalculates internal imports, extracts, consolidates and isolates rollback', () => {

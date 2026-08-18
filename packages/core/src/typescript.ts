@@ -1,10 +1,7 @@
 import { extname } from 'node:path';
 import ts from 'typescript';
 import type { Finding } from './types.js';
-
-function lineAt(content: string, position: number): number {
-  return content.slice(0, position).split(/\r?\n/).length;
-}
+import { lineAt } from './text-utils.js';
 
 function suppressionLines(file: string, content: string): number[] {
   return ['.ts', '.tsx'].includes(extname(file))

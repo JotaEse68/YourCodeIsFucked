@@ -1,11 +1,7 @@
 import type { Finding } from './types.js';
+import { lineAt, lineNumbers as linesMatching } from './text-utils.js';
 
 export interface WordPressSource { path: string; content: string; }
-
-function lineAt(content: string, offset: number): number { return content.slice(0, offset).split(/\r?\n/).length; }
-function linesMatching(content: string, expression: RegExp): number[] {
-  return content.split(/\r?\n/).flatMap((line, index) => expression.test(line) ? [index + 1] : []);
-}
 
 /** Documents dynamic WordPress entry points so other analyzers never classify them as dead by static references alone. */
 export function wordpressFindings(displayPath: string, content: string): Finding[] {
