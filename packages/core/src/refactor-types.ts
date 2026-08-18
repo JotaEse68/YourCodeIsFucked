@@ -1,4 +1,4 @@
-import type { Finding, RefactorPlan as LegacyRefactorPlan } from './types.js';
+import type { Finding, RefactorPlan as LegacyRefactorPlan, UnderstandReport } from './types.js';
 
 export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type SafetyMode = 'SAFE' | 'SUPERVISED' | 'BLOCKED';
@@ -27,11 +27,10 @@ export interface RefactorBlock {
 
 export interface OperationRecord { operationId: string; kind: RefactorOperationKind; changedFiles: string[]; description: string; undone: boolean; }
 export interface RollbackEvent { blockId: string; reason: string; operationsUndone: string[]; isolated: true; }
-export interface ModuleImportEdge { file: string; imports: string[]; }
 export interface RefactorExecutionReport {
   version: 2; target: string; startedAt: string; completedAt: string; status: 'planned' | 'completed' | 'partial' | 'failed';
   blocks: RefactorBlock[]; keptBlocks: string[]; rolledBackBlocks: string[]; blockedBlocks: string[]; operationLog: OperationRecord[]; rollbackEvents: RollbackEvent[];
-  before?: { files: string[]; architecture: ModuleImportEdge[] }; after?: { files: string[]; architecture: ModuleImportEdge[] };
+  before?: { files: string[]; architecture?: UnderstandReport['graph'] }; after?: { files: string[]; architecture?: UnderstandReport['graph'] };
 }
 
 export interface ArchitecturalRefactorPlan {

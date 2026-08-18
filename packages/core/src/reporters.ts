@@ -1,8 +1,8 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { releaseCheckLabel, releaseCheckedLabel, releaseHeading } from './i18n.js';
-import type { AuditReport, DependencyAuditReport, Language, RefactorPlan, ReleaseReport, UnfuckReport } from './types.js';
-import type { ModuleImportEdge, RefactorExecutionReport } from './refactor-types.js';
+import type { AuditReport, DependencyAuditReport, Language, RefactorPlan, ReleaseReport, UnderstandReport, UnfuckReport } from './types.js';
+import type { RefactorExecutionReport } from './refactor-types.js';
 
 export function writeAuditReport(target: string, report: AuditReport): { jsonPath: string; markdownPath: string } {
   const output = join(resolve(target), '.ycf');
@@ -50,17 +50,20 @@ export function writeReleaseReport(target: string, report: ReleaseReport, langua
   return { jsonPath, markdownPath };
 }
 
-function architectureDiffMarkdown(before: ModuleImportEdge[] = [], after: ModuleImportEdge[] = []): string {
-  const beforeMap = new Map(before.map((edge) => [edge.file, edge.imports]));
-  const afterMap = new Map(after.map((edge) => [edge.file, edge.imports]));
-  const added = [...afterMap.keys()].filter((file) => !beforeMap.has(file)).sort();
-  const removed = [...beforeMap.keys()].filter((file) => !afterMap.has(file)).sort();
-  const changed = [...afterMap.keys()].filter((file) => beforeMap.has(file) && (beforeMap.get(file) ?? []).join('|') !== (afterMap.get(file) ?? []).join('|')).sort();
-  const sections: string[] = [];
-  if (added.length) sections.push(`**New modules:**\n${added.map((file) => `- \`${file}\``).join('\n')}`);
-  if (removed.length) sections.push(`**Removed modules:**\n${removed.map((file) => `- \`${file}\``).join('\n')}`);
-  if (changed.length) sections.push(`**Changed import edges:**\n${changed.map((file) => `- \`${file}\`: ${(beforeMap.get(file) ?? []).join(', ') || '(none)'} → ${(afterMap.get(file) ?? []).join(', ') || '(none)'}`).join('\n')}`);
-  return sections.length ? sections.join('\n\n') : 'No architectural changes detected.';
+export function architectureDiff(before: UnderstandReport['graph'] | undefined, after: UnderstandReport['graph'] | undefined): { addedModules: string[]; removedModules: string[]; addedEdges: number; removedEdges: number; cyclesBefore: number; cyclesAfter: number } {
+  const beforeFiles = new Set((before?.nodes ?? []).map((node) => node.file));
+  const afterFiles = new Set((after?.nodes ?? []).map((node) => node.file));
+  const edgeKey = (edge: { from: string; to: string }) => `${edge.from}->${edge.to}`;
+  const beforeEdges = new Set((before?.edges ?? []).map(edgeKey));
+  const afterEdges = new Set((after?.edges ?? []).map(edgeKey));
+  return {
+    addedModules: [...afterFiles].filter((file) => !beforeFiles.has(file)).sort(),
+    removedModules: [...beforeFiles].filter((file) => !afterFiles.has(file)).sort(),
+    addedEdges: [...afterEdges].filter((edge) => !beforeEdges.has(edge)).length,
+    removedEdges: [...beforeEdges].filter((edge) => !afterEdges.has(edge)).length,
+    cyclesBefore: before?.cycles.length ?? 0,
+    cyclesAfter: after?.cycles.length ?? 0
+  };
 }
 
 export function writeRefactorExecutionReport(target: string, report: RefactorExecutionReport): { jsonPath: string; markdownPath: string } {
@@ -69,8 +72,9 @@ export function writeRefactorExecutionReport(target: string, report: RefactorExe
   const jsonPath = join(output, 'refactor-execution.json');
   const markdownPath = join(output, 'refactor-execution.md');
   writeFileSync(jsonPath, JSON.stringify(report, null, 2), 'utf8');
-  const blocks = report.blocks.length ? report.blocks.map((block) => `- \`${block.id}\`: **${block.status}**${block.result?.error ? ` — ${block.result.error}` : ''}`).join('\n') : '- No blocks.';
-  writeFileSync(markdownPath, `# YCF refactor execution\n\nStatus: **${report.status.toUpperCase()}**\n\n- Verified: ${report.keptBlocks.join(', ') || 'none'}\n- Rolled back: ${report.rolledBackBlocks.join(', ') || 'none'}\n- Blocked/supervised: ${report.blockedBlocks.join(', ') || 'none'}\n\n## Blocks\n\n${blocks}\n\n## Architecture (before → after)\n\n${architectureDiffMarkdown(report.before?.architecture, report.after?.architecture)}\n`, 'utf8');
+  const diff = architectureDiff(report.before?.architecture, report.after?.architecture);
+  const blocks = report.blocks.length ? report.blocks.map((block) => `- \`${block.id}\` **${block.status}** -- ${block.goal}`).join('\n') : '- No blocks.';
+  writeFileSync(markdownPath, `# YCF refactor execution report\n\nStatus: **${report.status.toUpperCase()}**\n\nStarted: ${report.startedAt}\nCompleted: ${report.completedAt}\n\n## Architecture\n\n- Modules added: ${diff.addedModules.map((file) => `\`${file}\``).join(', ') || 'none'}\n- Modules removed: ${diff.removedModules.map((file) => `\`${file}\``).join(', ') || 'none'}\n- Import edges added: ${diff.addedEdges}\n- Import edges removed: ${diff.removedEdges}\n- Dependency cycles before: ${diff.cyclesBefore}\n- Dependency cycles after: ${diff.cyclesAfter}\n\n## Blocks\n\n${blocks}\n\n## Rollback events\n\n${report.rollbackEvents.length ? report.rollbackEvents.map((event) => `- \`${event.blockId}\`: ${event.reason} (undone: ${event.operationsUndone.join(', ') || 'none'})`).join('\n') : '- None.'}\n`, 'utf8');
   return { jsonPath, markdownPath };
 }
 

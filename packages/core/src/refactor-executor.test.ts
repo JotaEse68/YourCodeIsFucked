@@ -154,17 +154,18 @@ describe('architectural refactor executor', () => {
     });
   });
 
-  it('captures the module import graph before and after, and reports it as a diff', () => {
+  it('captures architecture before and after the run, and reports it as a diff', () => {
     const root = mkdtempSync(join(tmpdir(), 'ycf-architecture-')); const write = (file: string, content: string) => { const path = join(root, file); mkdirSync(path.slice(0, path.lastIndexOf('\\')), { recursive: true }); writeFileSync(path, content); };
     write('src/utils/math.ts', 'export const add = (a: number, b: number) => a + b;\n'); write('src/app.ts', "import { add } from './utils/math';\nconsole.log(add(1, 2));\n");
     const plan: ArchitecturalRefactorPlan = { version: 2, target: root, generatedAt: new Date().toISOString(), sourceFindings: [], summary: { auto: 1, safeRefactor: 1, supervised: 0, architectural: 0, blocked: 0 }, blocks: [block('RF-ARCHITECTURE', [{ id: 'op-move', kind: 'MOVE', description: 'move module tracked by the architecture graph', source: 'src/utils/math.ts', destination: 'src/lib/math.ts', updateImports: true }])] };
     const result = executeRefactorPlan(root, plan, { createGitCheckpoint: false });
     expect(result.keptBlocks).toEqual(['RF-ARCHITECTURE']);
-    expect(result.before?.architecture).toContainEqual({ file: 'src/app.ts', imports: ['src/utils/math.ts'] });
-    expect(result.after?.architecture).toContainEqual({ file: 'src/app.ts', imports: ['src/lib/math.ts'] });
-    expect(result.after?.architecture?.some((edge) => edge.file === 'src/utils/math.ts')).toBe(false);
+    expect(result.before?.architecture?.nodes.some((node) => node.file === 'src/utils/math.ts')).toBe(true);
+    expect(result.after?.architecture?.nodes.some((node) => node.file === 'src/lib/math.ts')).toBe(true);
+    expect(result.after?.architecture?.nodes.some((node) => node.file === 'src/utils/math.ts')).toBe(false);
+    expect(result.after?.architecture?.edges).toContainEqual({ from: 'src/app.ts', to: 'src/lib/math.ts', kind: 'import' });
     const { markdownPath } = writeRefactorExecutionReport(root, result);
     const markdown = readFileSync(markdownPath, 'utf8');
-    expect(markdown).toContain('## Architecture (before → after)'); expect(markdown).toContain('**New modules:**'); expect(markdown).toContain('src/lib/math.ts'); expect(markdown).toContain('**Removed modules:**'); expect(markdown).toContain('src/utils/math.ts');
+    expect(markdown).toContain('## Architecture'); expect(markdown).toContain('Modules added:'); expect(markdown).toContain('src/lib/math.ts'); expect(markdown).toContain('Modules removed:'); expect(markdown).toContain('src/utils/math.ts');
   });
 });
