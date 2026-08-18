@@ -11,6 +11,7 @@ import { createReleaseReadiness } from './release.js';
 import { typescriptFindings } from './typescript.js';
 import { impactAnalysis as createImpactAnalysis } from './impact.js';
 import { duplicateFindings, duplicateGroups } from './duplicates.js';
+import { isExternalConnectionFile } from './refactor-safety.js';
 export type { ArchitecturalRefactorPlan, RefactorBlock, RefactorExecutionReport, RefactorOperation, RefactorBlockStatus, RiskLevel, SafetyMode, RefactorOperationKind, OperationRecord, RollbackEvent, RollbackStep, VerificationStep } from './refactor-types.js';
 export { applyRefactorOperation } from './refactor-operations.js';
 export { executeRefactorPlan } from './refactor-executor.js';
@@ -468,7 +469,14 @@ export function audit(target: string): AuditReport {
     ...dependencyFindings(resolvedTarget, files),
     ...duplicateFindings(resolvedTarget, files)
   ];
-  const score = calculateScore(findings, scoreDimensions(resolvedTarget, files, findings));
+  // Findings in a file that connects to something outside this repo's control (auth,
+  // billing, database, a webhook/API caller) still get reported as real evidence, but
+  // do not count toward the score: "organize messy code" should never be incentivized
+  // to touch a legitimate external contract. See externalConnectionPatterns and
+  // skills/ycf-quality-gate/references/reviewing-external-code.md.
+  const externalConnectionFiles = new Set(files.filter((file) => isExternalConnectionFile(relative(resolvedTarget, file) || file, readFileSync(file, 'utf8'))).map((file) => relative(resolvedTarget, file) || file));
+  const scorableFindings = findings.filter((finding) => !externalConnectionFiles.has(finding.file));
+  const score = calculateScore(scorableFindings, scoreDimensions(resolvedTarget, files, scorableFindings));
   return {
     version: 1,
     target: resolvedTarget,

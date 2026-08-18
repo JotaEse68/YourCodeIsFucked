@@ -482,6 +482,16 @@ describe('stack detection', () => {
     expect(report.score.dimensions).toEqual(expect.objectContaining({ architecture: expect.any(Number), maintainability: expect.any(Number), security: expect.any(Number), tests: 90, documentation: expect.any(Number) }));
   });
 
+  it('reports findings in a file that connects externally (auth/billing/webhook/database) but does not let them move the score', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    writeFileSync(join(directory, 'stripe-webhook-handler.ts'), '// TODO: fix this\n// TODO: fix that\n// TODO: and this too\nexport function handleWebhook() {\n  return true;\n}\n');
+    const report = audit(directory);
+    expect(report.findings).toContainEqual(expect.objectContaining({ ruleId: 'todo-from-hell', file: 'stripe-webhook-handler.ts' }));
+    expect(report.score.fucked).toBe(0);
+    expect(report.score.health).toBe(100);
+  });
+
   it('reports complexity, exact duplicate blocks and unreferenced production dependencies without changing code', () => {
     const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
     temporaryDirectories.push(directory);
