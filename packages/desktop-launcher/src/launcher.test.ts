@@ -23,7 +23,7 @@ describe('launchCockpitFor', () => {
 
       const auditResponse = await fetch(`${url}/run/audit?token=${token}`);
       expect(auditResponse.status).toBe(200);
-      expect(await auditResponse.text()).toContain('YCF — cockpit');
+      expect(await auditResponse.text()).toContain('YCF — Fuck-O-Meter');
 
       const releaseResponse = await fetch(`${url}/run/release?token=${token}`);
       expect(releaseResponse.status).toBe(200);

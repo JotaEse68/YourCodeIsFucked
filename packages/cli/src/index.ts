@@ -306,7 +306,7 @@ program.command('cockpit [target]').description('Write and open a self-contained
   }
   const cockpit = cockpitHtml(report, auditReport, verificationPlan(resolvedTarget)).replace('</body>', `${bootstrap}${cockpitActionsHtml()}</body>`);
   writeFileSync(cockpitPath, cockpit, 'utf8');
-  console.log('YCF — cockpit ready.');
+  console.log('YCF — Fuck-O-Meter ready.');
   if (options.open !== false && openBrowser(cockpitPath)) console.log(`Opened in your browser: ${cockpitPath}`);
   else console.log(`Open this file in your browser: ${cockpitPath}`);
   console.log(server ? 'Read-only: it does not modify source files. The local server only serves read-only plan data and never applies changes.' : 'Read-only: it does not modify source files or start a server.');
