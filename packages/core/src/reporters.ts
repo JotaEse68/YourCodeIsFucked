@@ -12,7 +12,8 @@ export function writeAuditReport(target: string, report: AuditReport): { jsonPat
   writeFileSync(jsonPath, JSON.stringify(report, null, 2), 'utf8');
   const findings = report.findings.length ? report.findings.map((finding) => `- **${finding.severity}** \`${finding.file}:${finding.lines.join(',')}\` — ${finding.evidence}`).join('\n') : '- No findings.';
   const dimensions = report.score.dimensions;
-  writeFileSync(markdownPath, `# YCF audit report\n\nGenerated: ${report.auditedAt}\n\n- FUCKED SCORE: ${report.score.fucked}%\n- HEALTH SCORE: ${report.score.health}/100\n- Architecture: ${dimensions.architecture}/100\n- Maintainability: ${dimensions.maintainability}/100\n- Security: ${dimensions.security}/100\n- Tests: ${dimensions.tests}/100\n- Documentation: ${dimensions.documentation}/100\n- Source files: ${report.sourceFiles}\n\n## Findings\n\n${findings}\n`, 'utf8');
+  const autoIgnored = report.autoIgnored.length ? report.autoIgnored.map((directory) => `- \`${directory.path}\` (${directory.files} files) — looks like a bundled third-party SDK (external connection), excluded from the audit. If this is your own code, add it under \`include:\` in ycf.config.yml.`).join('\n') : '- None detected.';
+  writeFileSync(markdownPath, `# YCF audit report\n\nGenerated: ${report.auditedAt}\n\n- FUCKED SCORE: ${report.score.fucked}%\n- HEALTH SCORE: ${report.score.health}/100\n- Architecture: ${dimensions.architecture}/100\n- Maintainability: ${dimensions.maintainability}/100\n- Security: ${dimensions.security}/100\n- Tests: ${dimensions.tests}/100\n- Documentation: ${dimensions.documentation}/100\n- Source files: ${report.sourceFiles}\n\n## Auto-excluded external connections\n\n${autoIgnored}\n\n## Findings\n\n${findings}\n`, 'utf8');
   return { jsonPath, markdownPath };
 }
 

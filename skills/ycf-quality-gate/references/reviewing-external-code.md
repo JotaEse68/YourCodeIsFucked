@@ -48,21 +48,28 @@ organizing messy or AI-generated code, not touching a legitimate external constr
 "Fixing" or reorganizing code that exists because of an external contract can silently
 break that integration — the opposite of what YCF is for.
 
-For the bundled-SDK case, add it to a `ycf.config.yml` in the working copy so it is
-excluded from the audit entirely:
+For the bundled-SDK case, `ycf audit` detects this on its own now: a folder that carries
+its own `LICENSE`/`LICENSE.md`/`COPYING` and its own `README`/`CHANGELOG` directly inside
+itself (the same signal described above) is treated as a vendored third-party SDK and
+excluded from the audit automatically — no `ycf.config.yml` edit required. The audit
+report lists what it excluded under `autoIgnored` (JSON) / "Auto-excluded external
+connections" (Markdown/CLI), naming the folder and file count, so nothing is silently
+hidden. If the heuristic is wrong — a folder that happens to ship its own LICENSE/README
+but is genuinely the author's own code — force it back into scope with `include:`:
 
 ```yaml
 version: 1
 mode: balanced
 language: en
 audience: guided
-ignore:
-  - freemius
+include:
+  - my-own-sdk-shaped-folder
 ```
 
-Re-run `ycf audit` after adding the ignore and report both numbers if useful context: the
-raw scan (everything) and the scoped scan (the author's own code) — do not silently
-report only one without saying which.
+You can still add an explicit `ignore:` entry by hand for a folder that does *not* match
+the LICENSE+README heuristic (e.g. no license file shipped) but is still clearly a vendor
+drop. Report both numbers if useful context: the raw scan (everything) and the scoped
+scan (the author's own code) — do not silently report only one without saying which.
 
 For the project's-own-code case, `CONSOLIDATE` already refuses to merge a file matching
 these patterns without review (see `refactor-safety.ts`). Findings in these files are

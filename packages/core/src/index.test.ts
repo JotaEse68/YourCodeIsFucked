@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -490,6 +490,45 @@ describe('stack detection', () => {
     expect(report.findings).toContainEqual(expect.objectContaining({ ruleId: 'todo-from-hell', file: 'stripe-webhook-handler.ts' }));
     expect(report.score.fucked).toBe(0);
     expect(report.score.health).toBe(100);
+  });
+
+  it('auto-detects a bundled third-party SDK by its own LICENSE + README and excludes it from the audit', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    const sdkDir = join(directory, 'freemius');
+    mkdirSync(sdkDir);
+    writeFileSync(join(sdkDir, 'LICENSE.txt'), 'MIT');
+    writeFileSync(join(sdkDir, 'README.md'), 'Freemius SDK');
+    writeFileSync(join(sdkDir, 'start.php'), '<?php\n// TODO: fix this\n// TODO: fix that\n// TODO: and this too');
+    writeFileSync(join(directory, 'plugin.php'), '<?php function boot() { return true; }');
+    const report = audit(directory);
+    expect(report.autoIgnored).toContainEqual(expect.objectContaining({ path: 'freemius', reason: 'vendored-sdk', files: 3 }));
+    expect(report.findings.some((finding) => finding.file.startsWith('freemius'))).toBe(false);
+  });
+
+  it('does not auto-exclude a project folder that has no license or readme of its own', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    const helpersDir = join(directory, 'helpers');
+    mkdirSync(helpersDir);
+    writeFileSync(join(helpersDir, 'format.ts'), 'export const format = (value: string) => value.trim();');
+    const report = audit(directory);
+    expect(report.autoIgnored).toEqual([]);
+    expect(report.sourceFiles).toBe(1);
+  });
+
+  it('lets ycf.config.yml "include" force a false-positive vendored-SDK match back into scope', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    writeFileSync(join(directory, 'ycf.config.yml'), 'include:\n  - my-module\n');
+    const moduleDir = join(directory, 'my-module');
+    mkdirSync(moduleDir);
+    writeFileSync(join(moduleDir, 'LICENSE'), 'MIT');
+    writeFileSync(join(moduleDir, 'README.md'), 'My own module, coincidentally licensed.');
+    writeFileSync(join(moduleDir, 'index.ts'), '// TODO: fix this\n// TODO: fix that\n// TODO: and this too');
+    const report = audit(directory);
+    expect(report.autoIgnored).toEqual([]);
+    expect(report.findings).toContainEqual(expect.objectContaining({ ruleId: 'todo-from-hell', file: join('my-module', 'index.ts') }));
   });
 
   it('reports complexity, exact duplicate blocks and unreferenced production dependencies without changing code', () => {

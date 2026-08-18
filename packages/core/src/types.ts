@@ -11,12 +11,14 @@ export interface Finding {
 }
 export interface AuditReport {
   version: 1; target: string; auditedAt: string; readOnly: true; stacks: Stack[]; sourceFiles: number; git: GitState; findings: Finding[];
+  autoIgnored: AutoIgnoredDirectory[];
   score: { fucked: number; health: number; method: 'deterministic-v1'; dimensions: { architecture: number; maintainability: number; security: number; tests: number; documentation: number } };
 }
 export interface YcfConfig {
   version: 1; mode: 'conservative' | 'balanced' | 'aggressive'; language: Language; audience: Audience;
-  refactor: { maxFileLines: number; maxFunctionLines: number; maxComplexity: number }; ignore: string[];
+  refactor: { maxFileLines: number; maxFunctionLines: number; maxComplexity: number }; ignore: string[]; include: string[];
 }
+export interface AutoIgnoredDirectory { path: string; reason: 'vendored-sdk'; files: number; }
 export interface DuplicateGroup {
   id: string; kind: 'exact' | 'similar' | 'semantic'; certainty: 'confirmed' | 'likely' | 'possible'; similarity: number; lines: number;
   occurrences: Array<{ file: string; startLine: number; endLine: number }>;

@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { basename, extname, join, relative, resolve } from 'node:path';
 import ts from 'typescript';
-import { ignoredDirectories, loadConfig } from './config.js';
+import { detectVendoredSdkDirs, effectiveIgnoredDirectories, ignoredDirectories, loadConfig } from './config.js';
 import { findGitRoot } from './git.js';
 import { writeAuditReport as persistAuditReport, writeRefactorPlan } from './reporters.js';
 import { buildRefactorPlan } from './planner.js';
@@ -21,8 +21,8 @@ export { buildArchitecturalRefactorPlan } from './refactor-planner.js';
 export { writeRefactorExecutionReport, architectureDiff } from './reporters.js';
 export { demoRefactorBlock } from './refactor-block-fixture.js';
 import type { AuditReport, CleanupReport, DuplicateGroup, Finding, ImpactReport, RefactorPlan, Stack, UnderstandReport, YcfConfig } from './types.js';
-export type { AuditReport, CleanupReport, DependencyAuditReport, DependencyVulnerability, DuplicateGroup, Finding, FindingRisk, GitCheckpoint, GitState, ImpactReport, RefactorPlan, RefactorRecommendation, ReleaseCheck, ReleaseReport, Stack, UnderstandReport, UnfuckReport, VerificationCheck, VerificationReport, YcfConfig } from './types.js';
-export { defaultConfig, loadConfig } from './config.js';
+export type { AuditReport, AutoIgnoredDirectory, CleanupReport, DependencyAuditReport, DependencyVulnerability, DuplicateGroup, Finding, FindingRisk, GitCheckpoint, GitState, ImpactReport, RefactorPlan, RefactorRecommendation, ReleaseCheck, ReleaseReport, Stack, UnderstandReport, UnfuckReport, VerificationCheck, VerificationReport, YcfConfig } from './types.js';
+export { defaultConfig, detectVendoredSdkDirs, loadConfig } from './config.js';
 export { createCheckpoint, findGitRoot, latestCheckpoint, rollbackToCheckpoint } from './git.js';
 export { verificationPlan, verify } from './verify.js';
 export { writeUnfuckReport } from './reporters.js';
@@ -66,14 +66,14 @@ export function detectStacks(target: string): Stack[] {
   return [...stacks];
 }
 
-function sourceFilesIn(target: string, config = loadConfig(target)): string[] {
-  return walk(target, new Set([...ignoredDirectories, ...config.ignore])).filter((file) => sourceExtensions.has(extname(file)));
+function sourceFilesIn(target: string, config = loadConfig(target), ignored = effectiveIgnoredDirectories(target, config)): string[] {
+  return walk(target, ignored).filter((file) => sourceExtensions.has(extname(file)));
 }
 
-function sensitiveRepositoryFindings(target: string, config: YcfConfig): Finding[] {
+function sensitiveRepositoryFindings(target: string, config: YcfConfig, ignored = effectiveIgnoredDirectories(target, config)): Finding[] {
   const findings: Finding[] = [];
   const git = findGitRoot(target);
-  for (const file of walk(target, new Set([...ignoredDirectories, ...config.ignore]))) {
+  for (const file of walk(target, ignored)) {
     const path = relative(target, file) || file;
     const name = basename(file).toLowerCase();
     const secretFile = /^\.env(?:\.(?!example$|sample$|template$)[a-z0-9_-]+)?$/i.test(name)
@@ -447,13 +447,15 @@ export function audit(target: string): AuditReport {
   const resolvedTarget = resolve(target);
   if (!existsSync(resolvedTarget)) throw new Error(`Target does not exist: ${resolvedTarget}`);
   const config = loadConfig(resolvedTarget);
-  const files = sourceFilesIn(resolvedTarget, config);
+  const autoIgnoredDirs = detectVendoredSdkDirs(resolvedTarget, config);
+  const ignored = effectiveIgnoredDirectories(resolvedTarget, config, autoIgnoredDirs);
+  const files = sourceFilesIn(resolvedTarget, config, ignored);
   const wordpressSources = files.filter((file) => extname(file) === '.php').map((file) => ({ path: relative(resolvedTarget, file) || file, content: readFileSync(file, 'utf8') }));
   const findings = [
     ...files.flatMap((file) => analyzeFile(resolvedTarget, file, config)),
     ...deadCodeFindings(resolvedTarget, files),
     ...namedDetectorFindings(resolvedTarget, files, config),
-    ...sensitiveRepositoryFindings(resolvedTarget, config),
+    ...sensitiveRepositoryFindings(resolvedTarget, config, ignored),
     ...wordpressAjaxFindings(wordpressSources),
     ...wordpressDataFlowFindings(wordpressSources),
     ...wordpressRestFindings(wordpressSources),
@@ -481,6 +483,7 @@ export function audit(target: string): AuditReport {
     sourceFiles: files.length,
     git: findGitRoot(resolvedTarget),
     findings,
+    autoIgnored: autoIgnoredDirs,
     score
   };
 }

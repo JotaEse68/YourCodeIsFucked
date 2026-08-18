@@ -289,6 +289,10 @@ program.command('audit [target]').description('Audit a repository without modify
   console.log(`Stacks: ${report.stacks.join(', ') || 'unknown'}`);
   console.log(`Source files: ${report.sourceFiles}`);
   console.log(`Git: ${report.git.detected ? 'detected' : 'not detected'}`);
+  if (report.autoIgnored.length) {
+    console.log(`External connections auto-detected and excluded from the score: ${report.autoIgnored.length}`);
+    for (const directory of report.autoIgnored) console.log(`  - ${directory.path} (${directory.files} files) — looks like a bundled third-party SDK. If it's your own code, add it to "include" in ycf.config.yml.`);
+  }
   console.log(`Findings: ${report.findings.length}`);
   for (const finding of report.findings) console.log(`[${finding.severity}] ${finding.file}:${finding.lines.join(', ')} — ${guidedAdvice(finding, language, audience)}`);
   console.log(`FUCKED SCORE: ${report.score.fucked}%`);
