@@ -40,6 +40,15 @@ importers:
         specifier: ^5.8.0
         version: 5.9.3
 
+  packages/desktop-launcher:
+    devDependencies:
+      '@jotaese68/core':
+        specifier: workspace:*
+        version: link:../core
+      esbuild:
+        specifier: ^0.24.0
+        version: 0.24.2
+
 packages:
 
   '@esbuild/aix-ppc64@0.24.2':

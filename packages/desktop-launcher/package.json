@@ -1,0 +1,18 @@
+{
+  "name": "@jotaese68/desktop-launcher",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "private": true,
+  "description": "Double-click launcher that opens the YCF Cockpit for a chosen project folder — no terminal required.",
+  "repository": { "type": "git", "url": "git+https://github.com/JotaEse68/YourCodeIsFucked.git", "directory": "packages/desktop-launcher" },
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "@jotaese68/core": "workspace:*",
+    "esbuild": "^0.24.0"
+  }
+}
