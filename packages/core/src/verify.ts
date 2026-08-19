@@ -1,13 +1,17 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { extname, join, resolve } from 'node:path';
-import { loadConfig } from './config.js';
+import { effectiveIgnoredDirectories, loadConfig } from './config.js';
 import { runSecurityChecks } from './security.js';
 import type { Finding, VerificationCheck, VerificationReport } from './types.js';
 
 const sourceExtensions = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.php']);
-const ignoredDirs = new Set(['node_modules', 'vendor', 'dist', 'build', '.git', '.ycf']);
+// Respects the user's own ycf.config.yml ignore: list and detectVendoredSdkDirs' automatic
+// exclusion of bundled third-party SDKs, matching index.ts's audit() -- otherwise the
+// security check (which can now gate a command's success) can be dominated by directories
+// the user explicitly asked YCF to ignore, or vendored code they have no ability to fix.
 function walkSourceFiles(target: string): string[] {
+  const ignoredDirs = effectiveIgnoredDirectories(target, loadConfig(target));
   const out: string[] = [];
   const visit = (directory: string): void => {
     for (const entry of readdirSync(directory)) {
@@ -24,18 +28,23 @@ function walkSourceFiles(target: string): string[] {
 const severityRank: Record<string, number> = { low: 1, moderate: 2, high: 3, critical: 4 };
 function securityCheckStatus(target: string, findings: Finding[]): { status: 'passed' | 'failed'; output: string } {
   const threshold = loadConfig(target).security.dependencyFailOn;
-  const output = findings.length ? findings.map((finding) => `[${finding.ruleId}] ${finding.file} -- ${finding.evidence}`).join('\n') : 'No security findings.';
-  if (threshold === 'none') return { status: 'passed', output };
+  const listing = findings.length ? findings.map((finding) => `[${finding.ruleId}] ${finding.file} -- ${finding.evidence}`).join('\n') : 'No security findings.';
+  if (threshold === 'none') return { status: 'passed', output: listing };
   const thresholdRank = severityRank[threshold];
   // A dependency-vulnerability finding whose sourceSeverity is 'unknown' (or, defensively,
   // missing) is treated as meeting any configured threshold except 'none': an unrecognized
   // severity should never be silently ignored just because we can't rank it.
-  const failing = findings.some((finding) => {
+  const failingFindings = findings.filter((finding) => {
     if (finding.ruleId !== 'dependency-vulnerability') return false;
     if (finding.sourceSeverity === undefined || finding.sourceSeverity === 'unknown') return true;
     return severityRank[finding.sourceSeverity] >= thresholdRank;
   });
-  return { status: failing ? 'failed' : 'passed', output };
+  if (!failingFindings.length) return { status: 'passed', output: listing };
+  // Name which specific finding(s) caused the failure and how to disable the gate --
+  // otherwise the CLI's generic "Verification failed. Restored checkpoint <sha>." leaves
+  // the user unable to tell a pre-existing, unrelated CVE from a real regression.
+  const summary = `Security check failed (dependency_fail_on threshold: ${threshold}). Caused by: ${failingFindings.map((finding) => `[${finding.ruleId}] ${finding.file}`).join(', ')}. Set security.dependency_fail_on: none in ycf.config.yml to disable this gate.`;
+  return { status: 'failed', output: `${summary}\n\n${listing}` };
 }
 
 export function verificationPlan(target: string): VerificationCheck[] {

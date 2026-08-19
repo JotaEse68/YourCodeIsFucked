@@ -58,4 +58,16 @@ describe('security check', () => {
     const security = report.checks.find((check) => check.name === 'security');
     expect(security?.output).toContain('unsafe-eval');
   });
+
+  it('does not scan a directory listed in ycf.config.yml ignore:, matching audit()', () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-verify-security-ignore-'));
+    writeFileSync(join(target, 'package.json'), JSON.stringify({ name: 'fixture' }));
+    writeFileSync(join(target, 'ycf.config.yml'), 'version: 1\n\nignore:\n  - vendored-legacy\n');
+    mkdirSync(join(target, 'vendored-legacy'), { recursive: true });
+    writeFileSync(join(target, 'vendored-legacy/app.ts'), 'eval(userInput);\n');
+    const report = verify(target);
+    const security = report.checks.find((check) => check.name === 'security');
+    expect(security?.output).not.toContain('unsafe-eval');
+    expect(security?.output).not.toContain('vendored-legacy');
+  });
 });

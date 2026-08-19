@@ -144,6 +144,31 @@ describe('architectural refactor executor', () => {
     });
   });
 
+  describe('allowSupervised threading into applyRefactorOperation', () => {
+    const supervisedPlan = (root: string): ArchitecturalRefactorPlan => ({
+      version: 2, target: root, generatedAt: new Date().toISOString(), sourceFindings: [], summary: { auto: 0, safeRefactor: 0, supervised: 1, architectural: 0, blocked: 0 },
+      blocks: [{ ...block('RF-SUPERVISED', [{ id: 'op-create-sensitive', kind: 'CREATE', description: 'create in a sensitive zone', file: 'src/auth/session.ts', content: 'export const x = 1;\n' }]), mode: 'SUPERVISED' }]
+    });
+
+    it('--yes (allowSupervised: true) lets a SUPERVISED block with a CREATE into a sensitive-zone path succeed', () => {
+      const root = mkdtempSync(join(tmpdir(), 'ycf-supervised-allow-'));
+      const plan = supervisedPlan(root);
+      const result = executeRefactorPlan(root, plan, { createGitCheckpoint: false, allowSupervised: true });
+      expect(result.keptBlocks).toEqual(['RF-SUPERVISED']);
+      expect(result.blocks[0].status).toBe('VERIFIED');
+      expect(existsSync(join(root, 'src/auth/session.ts'))).toBe(true);
+    });
+
+    it('without allowSupervised, the same SUPERVISED block is still skipped/blocked, not silently executed', () => {
+      const root = mkdtempSync(join(tmpdir(), 'ycf-supervised-deny-'));
+      const plan = supervisedPlan(root);
+      const result = executeRefactorPlan(root, plan, { createGitCheckpoint: false });
+      expect(result.blockedBlocks).toEqual(['RF-SUPERVISED']);
+      expect(result.blocks[0].status).toBe('SUPERVISED');
+      expect(existsSync(join(root, 'src/auth/session.ts'))).toBe(false);
+    });
+  });
+
   it('captures architecture before and after the run, and reports it as a diff', () => {
     const root = mkdtempSync(join(tmpdir(), 'ycf-architecture-')); const write = (file: string, content: string) => { const path = join(root, file); mkdirSync(path.slice(0, path.lastIndexOf('\\')), { recursive: true }); writeFileSync(path, content); };
     write('src/utils/math.ts', 'export const add = (a: number, b: number) => a + b;\n'); write('src/app.ts', "import { add } from './utils/math';\nconsole.log(add(1, 2));\n");

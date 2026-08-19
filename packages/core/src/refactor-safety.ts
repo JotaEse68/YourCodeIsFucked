@@ -22,7 +22,11 @@ export function isExternalConnectionFile(file: string, content: string): boolean
   const text = `${basename(file)} ${file}\n${content}`;
   return externalConnectionPatterns.some(([pattern]) => pattern.test(text));
 }
-export const unsafeRuntimeCodePattern = /eval\s*\(|new\s+Function\s*\(/i;
+// Left word-boundary before "eval" so this doesn't match inside a larger identifier
+// like dataRetrieval(, approval(, or removal( -- used with .test() only (never
+// .exec()/match-extraction) in both this file and security.ts's unsafe-eval detector,
+// where an unbounded match would produce a false status: 'confirmed' finding.
+export const unsafeRuntimeCodePattern = /(?:^|[^\w$])eval\s*\(|new\s+Function\s*\(/i;
 const blockedPatterns: Array<[RegExp, string]> = [
   [/(?:import|require)\s*\(\s*[`"'][^`"']*[+$]/i, 'unresolvable dynamic module path'],
   [unsafeRuntimeCodePattern, 'runtime-generated code']

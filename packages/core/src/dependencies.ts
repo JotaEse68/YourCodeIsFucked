@@ -29,7 +29,12 @@ export function dependencyAudit(target: string): DependencyAuditReport {
   const plan = dependencyAuditPlan(resolvedTarget);
   if (plan.manager === 'unknown') return { target: resolvedTarget, auditedAt: new Date().toISOString(), ...plan, available: false, vulnerabilities: [], error: 'No package.json was found.' };
   const [command, ...args] = plan.command;
-  const result = spawnSync(command, args, { cwd: resolvedTarget, encoding: 'utf8', shell: process.platform === 'win32' });
+  // Bounded so a FULL VERIFY (verify(), possibly multiplied per-block under
+  // --apply-plan) can never hang indefinitely when there is no network access or the
+  // package manager's registry is firewalled. On timeout, spawnSync returns with empty
+  // stdout/stderr, output becomes '', JSON.parse('') throws below, and the existing
+  // catch already reports { available: false, ... } -- no other code path changes.
+  const result = spawnSync(command, args, { cwd: resolvedTarget, encoding: 'utf8', shell: process.platform === 'win32', timeout: 60_000 });
   const output = `${result.stdout ?? ''}${result.stderr ?? ''}`.trim();
   try {
     return { target: resolvedTarget, auditedAt: new Date().toISOString(), ...plan, available: true, vulnerabilities: parseDependencyAudit(output) };

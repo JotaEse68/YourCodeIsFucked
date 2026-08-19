@@ -399,7 +399,7 @@ program.command('move <source> <destination> [target]').description('Move one mo
     const changedImports = rewriteImportsForMove(report.target, source, destination, report);
     renameSync(sourcePath, destinationPath);
     const verification = verify(target);
-    if (!verification.passed) { rollbackToCheckpoint(target, checkpoint); console.error(`Verification failed. Restored checkpoint ${checkpoint.commit}.`); process.exitCode = 1; return; }
+    if (!verification.passed) { rollbackToCheckpoint(target, checkpoint); console.error(`Verification failed. Restored checkpoint ${checkpoint.commit}.`); printFailedChecks(verification); process.exitCode = 1; return; }
     console.log(`Move complete. Updated imports in ${changedImports.length} file(s).`);
     console.log(`Checkpoint retained: ${checkpoint.ref}`);
     console.log(gitDiffSummary(target));
@@ -428,6 +428,7 @@ program.command('ai-residue [target]').description('Find AI/dev residue candidat
   if (!verification.passed) {
     rollbackToCheckpoint(target, checkpoint);
     console.error(`Verification failed. Restored checkpoint ${checkpoint.commit}.`);
+    printFailedChecks(verification);
     process.exitCode = 1;
     return;
   }
@@ -441,6 +442,16 @@ program.command('ai-residue [target]').description('Find AI/dev residue candidat
 function gitDiffSummary(target: string): string {
   try { return execFileSync('git', ['-C', resolve(target), 'diff', '--stat'], { encoding: 'utf8' }).trim() || 'No Git diff produced.'; }
   catch { return 'Git diff unavailable; inspect the working tree manually.'; }
+}
+
+// The generic "Verification failed. Restored checkpoint <sha>." line names no cause --
+// print each failed check's name and output (e.g. the security check's own message
+// naming which finding failed it and how to disable the gate) so the user can actually
+// tell a pre-existing, unrelated issue from a real regression.
+function printFailedChecks(verification: ReturnType<typeof verify>): void {
+  for (const check of verification.checks) {
+    if (check.status === 'failed') console.error(`  [${check.name}] ${check.output || 'failed'}`);
+  }
 }
 
 program.command('cleanup [target]').description('Remove parser-confirmed debug artifacts with Git safety and verification.').option('--dry-run', 'Show the planned cleanup without writing files.').option('--yes', 'Confirm the source-code changes.').action((target = '.', options) => {
@@ -458,6 +469,7 @@ program.command('cleanup [target]').description('Remove parser-confirmed debug a
   if (!verification.passed) {
     rollbackToCheckpoint(target, checkpoint);
     console.error(`Verification failed. Restored checkpoint ${checkpoint.commit}.`);
+    printFailedChecks(verification);
     process.exitCode = 1;
     return;
   }
@@ -571,7 +583,7 @@ program.command('seniorize [target]').description('Run the complete quality pipe
   try {
     const cleanup = safe ? cleanupDevArtifacts(target) : undefined;
     const verification = verify(target);
-    if (!verification.passed) { rollbackToCheckpoint(target, checkpoint); console.error(`Verification failed. Restored checkpoint ${checkpoint.commit}.`); process.exitCode = 1; return; }
+    if (!verification.passed) { rollbackToCheckpoint(target, checkpoint); console.error(`Verification failed. Restored checkpoint ${checkpoint.commit}.`); printFailedChecks(verification); process.exitCode = 1; return; }
     understand(target);
     console.log(`Safe block complete. Changed ${cleanup?.changedFiles.length ?? 0} file(s).`);
     console.log(`Structural recommendations remain supervised: ${plan.plan.summary.total}. Use ycf move --dry-run/--yes for explicit module moves.`);

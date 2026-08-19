@@ -61,7 +61,18 @@ describe('basicStaticSecurityProvider', () => {
     const target = mkdtempSync(join(tmpdir(), 'ycf-security-'));
     const file = writeFixture(target, 'src/app.ts', "eval(userInput);\n");
     const findings = basicStaticSecurityProvider.run(target, [file]);
-    expect(findings.find((item) => item.ruleId === 'unsafe-eval')).toBeDefined();
+    const finding = findings.find((item) => item.ruleId === 'unsafe-eval');
+    expect(finding).toBeDefined();
+    // A real, precisely-matched eval(...) call genuinely is unambiguous -- confirmed at
+    // 'confirmed' status, not weakened to 'needs_human'.
+    expect(finding?.status).toBe('confirmed');
+  });
+
+  it('does not flag an identifier ending in "eval", like dataRetrieval(x) -- unsafeRuntimeCodePattern must have a left word-boundary', () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-security-'));
+    const file = writeFixture(target, 'src/app.ts', "dataRetrieval(x);\n");
+    const findings = basicStaticSecurityProvider.run(target, [file]);
+    expect(findings.find((item) => item.ruleId === 'unsafe-eval')).toBeUndefined();
   });
 
   it('flags execSync called with a template literal containing a variable', () => {

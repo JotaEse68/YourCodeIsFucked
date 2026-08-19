@@ -7,7 +7,12 @@ export const ignoredDirectories = new Set(['.git', 'node_modules', 'dist', 'buil
 export const defaultConfig: YcfConfig = {
   version: 1, mode: 'balanced', language: 'en', audience: 'guided',
   refactor: { maxFileLines: 700, maxFunctionLines: 80, maxComplexity: 15 },
-  security: { dependencyFailOn: 'high' },
+  // Opt-in, not opt-out: a pre-existing, unrelated dependency CVE must not silently roll
+  // back unrelated work the first time a project runs a FULL VERIFY. Detection is
+  // unaffected -- findings still surface in the security check's output regardless of
+  // this threshold; only pass/fail gating changes. Set to 'low'/'moderate'/'high'/
+  // 'critical' in ycf.config.yml's security.dependency_fail_on to opt in.
+  security: { dependencyFailOn: 'none' },
   ignore: [...ignoredDirectories], include: []
 };
 
