@@ -21,3 +21,15 @@ export function verify(target: string): VerificationReport {
   });
   return { target: resolvedTarget, verifiedAt: new Date().toISOString(), checks, passed: checks.every((check) => check.status !== 'failed') };
 }
+
+export function verifyFast(target: string): VerificationReport {
+  const resolvedTarget = resolve(target);
+  const fast = new Set(['lint', 'typecheck']);
+  const checks = verificationPlan(resolvedTarget).filter((check) => fast.has(check.name)).map((check) => {
+    if (check.output) return check;
+    const [command, ...args] = check.command;
+    const result = spawnSync(command, args, { cwd: resolvedTarget, encoding: 'utf8', shell: process.platform === 'win32' });
+    return { ...check, status: result.status === 0 ? 'passed' as const : 'failed' as const, output: `${result.stdout ?? ''}${result.stderr ?? ''}`.trim() };
+  });
+  return { target: resolvedTarget, verifiedAt: new Date().toISOString(), checks, passed: checks.every((check) => check.status !== 'failed') };
+}

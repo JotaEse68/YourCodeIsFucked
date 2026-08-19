@@ -15,17 +15,18 @@ import { isExternalConnectionFile } from './refactor-safety.js';
 import { lineAt, lineNumbers } from './text-utils.js';
 export type { ArchitecturalRefactorPlan, RefactorBlock, RefactorExecutionReport, RefactorOperation, RefactorBlockStatus, RiskLevel, SafetyMode, RefactorOperationKind, OperationRecord, RollbackEvent, RollbackStep, VerificationStep } from './refactor-types.js';
 export { applyRefactorOperation } from './refactor-operations.js';
+export { applyReorganizationMove, type ReorganizationMoveResult } from './reorganization.js';
 export { executeRefactorPlan } from './refactor-executor.js';
 export { readCheckpointJournal } from './refactor-checkpoints.js';
 export { buildArchitecturalRefactorPlan } from './refactor-planner.js';
-export { writeRefactorExecutionReport, architectureDiff } from './reporters.js';
+export { writeRefactorExecutionReport, architectureDiff, writeReorganizationReport } from './reporters.js';
 export { cockpitActionsHtml, cockpitHtml, menuHtml, openBrowser, releaseReadinessHtml, startCockpitServer } from './cockpit.js';
 export { demoRefactorBlock } from './refactor-block-fixture.js';
-import type { AuditReport, CleanupReport, DuplicateGroup, Finding, ImpactReport, RefactorPlan, Stack, UnderstandReport, YcfConfig } from './types.js';
-export type { AuditReport, AutoIgnoredDirectory, CleanupReport, DependencyAuditReport, DependencyVulnerability, DuplicateGroup, Finding, FindingRisk, GitCheckpoint, GitState, ImpactReport, RefactorPlan, RefactorRecommendation, ReleaseCheck, ReleaseReport, Stack, UnderstandReport, UnfuckReport, VerificationCheck, VerificationReport, YcfConfig } from './types.js';
+import type { AiResidueCleanupReport, AuditReport, CleanupReport, DuplicateGroup, Finding, ImpactReport, RefactorPlan, Stack, UnderstandReport, YcfConfig } from './types.js';
+export type { AiResidueCleanupReport, AuditReport, AutoIgnoredDirectory, CleanupReport, DependencyAuditReport, DependencyVulnerability, DuplicateGroup, Finding, FindingRisk, GitCheckpoint, GitState, ImpactReport, RefactorPlan, RefactorRecommendation, ReleaseCheck, ReleaseReport, Stack, UnderstandReport, UnfuckReport, VerificationCheck, VerificationReport, YcfConfig } from './types.js';
 export { defaultConfig, detectVendoredSdkDirs, loadConfig } from './config.js';
 export { createCheckpoint, findGitRoot, latestCheckpoint, rollbackToCheckpoint } from './git.js';
-export { verificationPlan, verify } from './verify.js';
+export { verificationPlan, verify, verifyFast } from './verify.js';
 export { writeUnfuckReport } from './reporters.js';
 export { writeReleaseReport } from './reporters.js';
 export { dependencyAudit, dependencyAuditPlan, parseDependencyAudit } from './dependencies.js';
@@ -200,6 +201,12 @@ function reactAsyncEffectsWithoutCleanup(file: string, content: string): number[
   return lines;
 }
 
+// Shared with cleanupAiResidueMarkers below -- a line that matches here is always a full
+// comment line, so removing it can never change behavior. Widen this to catch more
+// leftover assistant phrasing, but never widen it to match anything that isn't a pure
+// comment line, since --yes deletes every match verbatim.
+const AI_RESIDUE_MARKER_PATTERN = /^\s*(?:\/\/|\/\*|\*|#).*\b(?:temporary\s+fix|todo\s*:\s*(?:remove|delete)|final-final|backup copy|(?:generated|written|added)\s+by\s+(?:ai|an\s+ai\s+assistant|copilot|chatgpt|claude|codex)|as an ai (?:language model|assistant))\b/i;
+
 function analyzeFile(target: string, file: string, config: YcfConfig): Finding[] {
   const findings: Finding[] = [];
   const content = readFileSync(file, 'utf8');
@@ -257,7 +264,7 @@ function analyzeFile(target: string, file: string, config: YcfConfig): Finding[]
       scoreImpact: Math.min(unusedImportLines.length * 2, 10)
     });
   }
-  const residueLines = lineNumbers(content, /^\s*(?:\/\/|\/\*|\*|#).*\b(?:temporary\s+fix|todo\s*:\s*(?:remove|delete)|final-final|backup copy)\b/i);
+  const residueLines = lineNumbers(content, AI_RESIDUE_MARKER_PATTERN);
   if (residueLines.length > 0) {
     findings.push({
       id: `ai-residue:${displayPath}`,
@@ -402,6 +409,30 @@ function deadCodeFindings(target: string, files: string[]): Finding[] {
   });
 }
 
+// A comment is redundant when it just restates the identifiers on the very next line of
+// code -- the classic assistant tic of narrating "what" instead of explaining "why". This
+// stays deliberately conservative (short comments only, high word overlap, camelCase split
+// so `deleteRecord` matches "delete" and "record") -- false negatives are fine here, since
+// under-flagging is safe and this finding is always report-only, never auto-deleted.
+function redundantCommentLines(content: string): number[] {
+  const lines = content.split(/\r?\n/);
+  const stopWords = new Set(['the', 'a', 'an', 'to', 'of', 'is', 'this', 'for', 'and', 'or', 'by']);
+  const tokens = (line: string) => (line.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase().match(/[a-z][a-z0-9]*/g) ?? []).filter((word) => !stopWords.has(word));
+  const flagged: number[] = [];
+  for (let index = 0; index < lines.length - 1; index += 1) {
+    const comment = lines[index].match(/^\s*\/\/\s*(.+)$/);
+    if (!comment) continue;
+    const next = lines[index + 1];
+    if (!next.trim() || /^\s*\/\//.test(next)) continue;
+    const commentWords = tokens(comment[1]);
+    if (commentWords.length < 2 || commentWords.length > 8) continue;
+    const codeWords = new Set(tokens(next));
+    const overlap = commentWords.filter((word) => codeWords.has(word)).length;
+    if (overlap / commentWords.length >= 0.6) flagged.push(index + 1);
+  }
+  return flagged;
+}
+
 function namedDetectorFindings(target: string, files: string[], config: YcfConfig): Finding[] {
   return files.flatMap((file) => {
     const display = relative(target, file);
@@ -410,8 +441,10 @@ function namedDetectorFindings(target: string, files: string[], config: YcfConfi
     const findings: Finding[] = [];
     const todoLines = lineNumbers(content, /^\s*(?:\/\/|\/\*|\*|#).*\b(?:TODO|FIXME|HACK|temporary\s+fix)\b/i);
     if (todoLines.length >= 2) findings.push({ id: `todo-from-hell:${display}`, ruleId: 'todo-from-hell', severity: 'low', risk: 'report-only', file: display, lines: todoLines, evidence: `TODOFromHell: ${todoLines.length} unresolved TODO/FIXME/HACK markers. Turn each into an issue, a deadline, or a real fix; comments are not a project-management system.`, scoreImpact: Math.min(todoLines.length, 6) });
-    const helperLines = lineNumbers(content, /\b(?:function|const|let|var)\s+(?:processDataThing|doThing|helper|mysteryHelper|handleStuff)\b/i);
+    const helperLines = lineNumbers(content, /\b(?:function|const|let|var)\s+(?:processDataThing|doThing|helper|mysteryHelper|handleStuff|processData|handleData|doStuff|doWork|utilFunction|helperFunction|tempFunction)\b/i);
     if (helperLines.length) findings.push({ id: `mystery-helper:${display}`, ruleId: 'mystery-helper', severity: 'low', risk: 'report-only', file: display, lines: helperLines, evidence: 'MysteryHelper: a vague helper name hides responsibility. Trace its callers and rename or narrow it only after confirming behavior.', scoreImpact: 2 });
+    const redundantLines = redundantCommentLines(content);
+    if (redundantLines.length) findings.push({ id: `redundant-comment:${display}`, ruleId: 'redundant-comment', severity: 'low', risk: 'report-only', file: display, lines: redundantLines, evidence: `${redundantLines.length} comment(s) appear to just restate the line below them -- a common assistant tic. Delete it if it adds nothing the code doesn't already say; keep it if it explains why, not what.`, scoreImpact: Math.min(redundantLines.length, 4) });
     if (['.tsx', '.jsx'].includes(extname(file))) {
       const imports = (content.match(/^\s*import\s/gm) ?? []).length;
       const component = complexityRegions(content).find((region) => /^[A-Z]/.test(region.name) && /<[A-Za-z][^>]*>/.test(region.body));
@@ -490,7 +523,7 @@ export function audit(target: string): AuditReport {
 }
 
 export function aiResidueFindings(target: string): Finding[] {
-  const residueRules = new Set<Finding['ruleId']>(['ai-residue', 'suspicious-filename', 'debug-statements', 'debug-console']);
+  const residueRules = new Set<Finding['ruleId']>(['ai-residue', 'suspicious-filename', 'debug-statements', 'debug-console', 'mystery-helper', 'redundant-comment']);
   return audit(target).findings.filter((finding) => residueRules.has(finding.ruleId));
 }
 
@@ -546,6 +579,29 @@ export function cleanupDevArtifacts(target: string): CleanupReport {
     removedDebugConsoleCalls: changedFiles.reduce((total, file) => total + file.removedDebugConsoleCalls, 0),
     removedUnusedImports: changedFiles.reduce((total, file) => total + file.removedUnusedImports, 0)
   };
+}
+
+/** Removes only lines matched by AI_RESIDUE_MARKER_PATTERN -- always a full comment line,
+ *  so this can never change behavior. mystery-helper, suspicious-filename, todo-from-hell
+ *  and redundant-comment are untouched: renaming or judging intent is not mechanical. */
+export function cleanupAiResidueMarkers(target: string): AiResidueCleanupReport {
+  const resolvedTarget = resolve(target);
+  const files = sourceFilesIn(resolvedTarget);
+  const changedFiles: AiResidueCleanupReport['changedFiles'] = [];
+  for (const file of files) {
+    const content = readFileSync(file, 'utf8');
+    const displayPath = relative(resolvedTarget, file);
+    let removed = 0;
+    let updated = '';
+    for (const match of content.matchAll(/^.*(?:\r?\n|$)/gm)) {
+      if (AI_RESIDUE_MARKER_PATTERN.test(match[0])) { removed += 1; continue; }
+      updated += match[0];
+    }
+    if (!removed) continue;
+    writeFileSync(file, updated, 'utf8');
+    changedFiles.push({ file: displayPath, removedMarkers: removed });
+  }
+  return { target: resolvedTarget, changedFiles, removedMarkers: changedFiles.reduce((total, entry) => total + entry.removedMarkers, 0) };
 }
 
 /** @deprecated Use cleanupDevArtifacts to include equally safe literal console cleanup. */
