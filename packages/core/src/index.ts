@@ -408,6 +408,30 @@ function deadCodeFindings(target: string, files: string[]): Finding[] {
   });
 }
 
+// A comment is redundant when it just restates the identifiers on the very next line of
+// code -- the classic assistant tic of narrating "what" instead of explaining "why". This
+// stays deliberately conservative (short comments only, high word overlap, camelCase split
+// so `deleteRecord` matches "delete" and "record") -- false negatives are fine here, since
+// under-flagging is safe and this finding is always report-only, never auto-deleted.
+function redundantCommentLines(content: string): number[] {
+  const lines = content.split(/\r?\n/);
+  const stopWords = new Set(['the', 'a', 'an', 'to', 'of', 'is', 'this', 'for', 'and', 'or', 'by']);
+  const tokens = (line: string) => (line.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase().match(/[a-z][a-z0-9]*/g) ?? []).filter((word) => !stopWords.has(word));
+  const flagged: number[] = [];
+  for (let index = 0; index < lines.length - 1; index += 1) {
+    const comment = lines[index].match(/^\s*\/\/\s*(.+)$/);
+    if (!comment) continue;
+    const next = lines[index + 1];
+    if (!next.trim() || /^\s*\/\//.test(next)) continue;
+    const commentWords = tokens(comment[1]);
+    if (commentWords.length < 2 || commentWords.length > 8) continue;
+    const codeWords = new Set(tokens(next));
+    const overlap = commentWords.filter((word) => codeWords.has(word)).length;
+    if (overlap / commentWords.length >= 0.6) flagged.push(index + 1);
+  }
+  return flagged;
+}
+
 function namedDetectorFindings(target: string, files: string[], config: YcfConfig): Finding[] {
   return files.flatMap((file) => {
     const display = relative(target, file);
@@ -416,8 +440,10 @@ function namedDetectorFindings(target: string, files: string[], config: YcfConfi
     const findings: Finding[] = [];
     const todoLines = lineNumbers(content, /^\s*(?:\/\/|\/\*|\*|#).*\b(?:TODO|FIXME|HACK|temporary\s+fix)\b/i);
     if (todoLines.length >= 2) findings.push({ id: `todo-from-hell:${display}`, ruleId: 'todo-from-hell', severity: 'low', risk: 'report-only', file: display, lines: todoLines, evidence: `TODOFromHell: ${todoLines.length} unresolved TODO/FIXME/HACK markers. Turn each into an issue, a deadline, or a real fix; comments are not a project-management system.`, scoreImpact: Math.min(todoLines.length, 6) });
-    const helperLines = lineNumbers(content, /\b(?:function|const|let|var)\s+(?:processDataThing|doThing|helper|mysteryHelper|handleStuff)\b/i);
+    const helperLines = lineNumbers(content, /\b(?:function|const|let|var)\s+(?:processDataThing|doThing|helper|mysteryHelper|handleStuff|processData|handleData|doStuff|doWork|utilFunction|helperFunction|tempFunction)\b/i);
     if (helperLines.length) findings.push({ id: `mystery-helper:${display}`, ruleId: 'mystery-helper', severity: 'low', risk: 'report-only', file: display, lines: helperLines, evidence: 'MysteryHelper: a vague helper name hides responsibility. Trace its callers and rename or narrow it only after confirming behavior.', scoreImpact: 2 });
+    const redundantLines = redundantCommentLines(content);
+    if (redundantLines.length) findings.push({ id: `redundant-comment:${display}`, ruleId: 'redundant-comment', severity: 'low', risk: 'report-only', file: display, lines: redundantLines, evidence: `${redundantLines.length} comment(s) appear to just restate the line below them -- a common assistant tic. Delete it if it adds nothing the code doesn't already say; keep it if it explains why, not what.`, scoreImpact: Math.min(redundantLines.length, 4) });
     if (['.tsx', '.jsx'].includes(extname(file))) {
       const imports = (content.match(/^\s*import\s/gm) ?? []).length;
       const component = complexityRegions(content).find((region) => /^[A-Z]/.test(region.name) && /<[A-Za-z][^>]*>/.test(region.body));

@@ -508,6 +508,42 @@ describe('stack detection', () => {
     expect(report.score.dimensions).toEqual(expect.objectContaining({ architecture: expect.any(Number), maintainability: expect.any(Number), security: expect.any(Number), tests: 90, documentation: expect.any(Number) }));
   });
 
+  it('widens mystery-helper to catch more assistant-typical generic names', () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(target);
+    writeFileSync(join(target, 'app.ts'), 'export function processData(input: unknown) {\n  return input;\n}\n');
+    const report = audit(target);
+    expect(report.findings.some((item) => item.ruleId === 'mystery-helper')).toBe(true);
+  });
+
+  it('flags a comment that only restates the line below it', () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(target);
+    writeFileSync(join(target, 'app.ts'), [
+      'export function sumAll(items: number[]): number {',
+      '  // return the total',
+      '  return items.reduce((total, item) => total + item, 0);',
+      '}'
+    ].join('\n'));
+    const report = audit(target);
+    const finding = report.findings.find((item) => item.ruleId === 'redundant-comment');
+    expect(finding).toBeDefined();
+    expect(finding?.risk).toBe('report-only');
+  });
+
+  it('does not flag an explanatory comment about why, not what', () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(target);
+    writeFileSync(join(target, 'app.ts'), [
+      'export function chargeCard(cents: number) {',
+      '  // retry once: the payment gateway occasionally times out on the first attempt',
+      '  return attemptCharge(cents);',
+      '}'
+    ].join('\n'));
+    const report = audit(target);
+    expect(report.findings.find((item) => item.ruleId === 'redundant-comment')).toBeUndefined();
+  });
+
   it('reports findings in a file that connects externally (auth/billing/webhook/database) but does not let them move the score', () => {
     const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
     temporaryDirectories.push(directory);
