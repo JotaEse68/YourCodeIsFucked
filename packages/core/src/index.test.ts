@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { aiResidueFindings, audit, buildArchitecturalRefactorPlan, cleanupAiResidueMarkers, cleanupDebugStatements, cleanupDevArtifacts, dependencyAuditPlan, detectStacks, duplicateGroups, impactAnalysis, loadConfig, parseDependencyAudit, refactorPlan, releaseCheckLabel, releaseReadiness, understand, verificationPlan, writeAuditReport, writeReleaseReport, writeUnfuckReport } from './index.js';
+import { aiResidueFindings, audit, buildArchitecturalRefactorPlan, cleanupAiResidueMarkers, cleanupDebugStatements, cleanupDevArtifacts, dependencyAuditPlan, detectStacks, duplicateGroups, impactAnalysis, loadConfig, parseDependencyAudit, refactorPlan, releaseCheckLabel, releaseReadiness, SECURITY_RELEVANT_RULE_IDS, understand, verificationPlan, writeAuditReport, writeReleaseReport, writeUnfuckReport } from './index.js';
 
 const temporaryDirectories: string[] = [];
 afterEach(() => temporaryDirectories.splice(0).forEach((directory) => rmSync(directory, { recursive: true, force: true })));
@@ -506,6 +506,13 @@ describe('stack detection', () => {
     const report = audit(directory);
     expect(report.findings.map((finding) => finding.ruleId)).toEqual(expect.arrayContaining(['todo-from-hell', 'mystery-helper', 'dead-code', 'dependency-nobody-uses']));
     expect(report.score.dimensions).toEqual(expect.objectContaining({ architecture: expect.any(Number), maintainability: expect.any(Number), security: expect.any(Number), tests: 90, documentation: expect.any(Number) }));
+  });
+
+  it('exposes the same security-relevant ruleId list the audit score dimension uses', () => {
+    expect(SECURITY_RELEVANT_RULE_IDS).toContain('wordpress-wpdb-unprepared-query');
+    expect(SECURITY_RELEVANT_RULE_IDS).toContain('sensitive-repository-file');
+    expect(SECURITY_RELEVANT_RULE_IDS).toContain('typescript-error-suppression');
+    expect(SECURITY_RELEVANT_RULE_IDS.length).toBe(11);
   });
 
   it('widens mystery-helper to catch more assistant-typical generic names', () => {
