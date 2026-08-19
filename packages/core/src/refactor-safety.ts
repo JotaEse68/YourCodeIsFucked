@@ -22,9 +22,10 @@ export function isExternalConnectionFile(file: string, content: string): boolean
   const text = `${basename(file)} ${file}\n${content}`;
   return externalConnectionPatterns.some(([pattern]) => pattern.test(text));
 }
+export const unsafeRuntimeCodePattern = /eval\s*\(|new\s+Function\s*\(/i;
 const blockedPatterns: Array<[RegExp, string]> = [
   [/(?:import|require)\s*\(\s*[`"'][^`"']*[+$]/i, 'unresolvable dynamic module path'],
-  [/eval\s*\(|new\s+Function\s*\(/i, 'runtime-generated code']
+  [unsafeRuntimeCodePattern, 'runtime-generated code']
 ];
 
 export interface SafetyAssessment { risk: RiskLevel; mode: SafetyMode; confidence: number; signals: string[]; reason: string; }

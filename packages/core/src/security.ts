@@ -1,4 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { relative } from 'node:path';
 import { dependencyAudit } from './dependencies.js';
+import { unsafeRuntimeCodePattern } from './refactor-safety.js';
 import type { DependencyVulnerability, Finding } from './types.js';
 
 export interface SecurityCheckProvider { name: string; run(target: string, files: string[]): Finding[]; }
@@ -22,5 +25,67 @@ export const dependencySecurityProvider: SecurityCheckProvider = {
       scoreImpact: severityScoreImpact[vulnerability.severity],
       sourceSeverity: vulnerability.severity
     }));
+  }
+};
+
+function lineNumbersMatching(content: string, pattern: RegExp): number[] {
+  return content.split(/\r?\n/).flatMap((line, index) => (pattern.test(line) ? [index + 1] : []));
+}
+
+const secretPattern = /\b(?:AKIA[0-9A-Z]{16}|sk_live_[A-Za-z0-9]{16,}|ghp_[A-Za-z0-9]{20,})\b|\b(?:api[_-]?key|secret|password|token)\s*[:=]\s*['"][^'"\s]{6,}['"]/i;
+const envReadPattern = /process\.env\.|\.env\[/;
+function hardcodedSecretFindings(target: string, file: string): Finding[] {
+  const content = readFileSync(file, 'utf8');
+  const display = relative(target, file);
+  const lines = lineNumbersMatching(content, secretPattern).filter((lineNumber) => !envReadPattern.test(content.split(/\r?\n/)[lineNumber - 1]));
+  if (!lines.length) return [];
+  return [{ id: `hardcoded-secret:${display}`, ruleId: 'hardcoded-secret', severity: 'medium', risk: 'report-only', file: display, lines, evidence: `${lines.length} line(s) look like a hardcoded secret, API key, or password. Move it to an environment variable or a secrets manager.`, scoreImpact: 6, confidence: 70, reproduce: `ycf audit . --json | jq '.findings[] | select(.ruleId=="hardcoded-secret")'`, status: 'needs_human' }];
+}
+
+function unsafeEvalFindings(target: string, file: string): Finding[] {
+  const content = readFileSync(file, 'utf8');
+  const display = relative(target, file);
+  const lines = lineNumbersMatching(content, unsafeRuntimeCodePattern);
+  if (!lines.length) return [];
+  return [{ id: `unsafe-eval:${display}`, ruleId: 'unsafe-eval', severity: 'medium', risk: 'report-only', file: display, lines, evidence: `${lines.length} use(s) of eval() or new Function() -- runs arbitrary strings as code. Refactor to avoid it if at all possible.`, scoreImpact: 6, confidence: 95, reproduce: `ycf audit . --json | jq '.findings[] | select(.ruleId=="unsafe-eval")'`, status: 'confirmed' }];
+}
+
+const shellExecPattern = /\b(?:exec|execSync)\s*\(\s*(?:`[^`]*\$\{|[^)]*\+)/;
+function unsafeShellCommandFindings(target: string, file: string): Finding[] {
+  const content = readFileSync(file, 'utf8');
+  const display = relative(target, file);
+  const lines = lineNumbersMatching(content, shellExecPattern);
+  if (!lines.length) return [];
+  return [{ id: `unsafe-shell-command:${display}`, ruleId: 'unsafe-shell-command', severity: 'medium', risk: 'report-only', file: display, lines, evidence: `${lines.length} shell command(s) built with string interpolation/concatenation passed to exec()/execSync(), which shell-interprets its argument. Prefer execFile()/execFileSync() with an argument array.`, scoreImpact: 6, confidence: 75, reproduce: `ycf audit . --json | jq '.findings[] | select(.ruleId=="unsafe-shell-command")'`, status: 'needs_human' }];
+}
+
+const sqlConcatPattern = /\.(?:query|execute|raw)\s*\(\s*`[^`]*\$\{/;
+function sqlInjectionRiskFindings(target: string, file: string): Finding[] {
+  const content = readFileSync(file, 'utf8');
+  const display = relative(target, file);
+  const lines = lineNumbersMatching(content, sqlConcatPattern);
+  if (!lines.length) return [];
+  return [{ id: `sql-injection-risk:${display}`, ruleId: 'sql-injection-risk', severity: 'medium', risk: 'report-only', file: display, lines, evidence: `${lines.length} query/execute/raw call(s) built by interpolating a template literal directly. Use parameterized queries instead.`, scoreImpact: 7, confidence: 70, reproduce: `ycf audit . --json | jq '.findings[] | select(.ruleId=="sql-injection-risk")'`, status: 'needs_human' }];
+}
+
+const tlsDisabledPattern = /rejectUnauthorized\s*:\s*false|NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*['"]0['"]/;
+function tlsVerificationDisabledFindings(target: string, file: string): Finding[] {
+  const content = readFileSync(file, 'utf8');
+  const display = relative(target, file);
+  const lines = lineNumbersMatching(content, tlsDisabledPattern);
+  if (!lines.length) return [];
+  return [{ id: `tls-verification-disabled:${display}`, ruleId: 'tls-verification-disabled', severity: 'medium', risk: 'report-only', file: display, lines, evidence: `${lines.length} location(s) disable TLS/SSL certificate verification. This accepts any certificate, including a forged one.`, scoreImpact: 8, confidence: 95, reproduce: `ycf audit . --json | jq '.findings[] | select(.ruleId=="tls-verification-disabled")'`, status: 'confirmed' }];
+}
+
+export const basicStaticSecurityProvider: SecurityCheckProvider = {
+  name: 'basic-static-security',
+  run(target, files) {
+    return files.flatMap((file) => [
+      ...hardcodedSecretFindings(target, file),
+      ...unsafeEvalFindings(target, file),
+      ...unsafeShellCommandFindings(target, file),
+      ...sqlInjectionRiskFindings(target, file),
+      ...tlsVerificationDisabledFindings(target, file)
+    ]);
   }
 };

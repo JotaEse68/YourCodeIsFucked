@@ -1,9 +1,9 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseDependencyAudit } from './dependencies.js';
-import { dependencySecurityProvider } from './security.js';
+import { basicStaticSecurityProvider, dependencySecurityProvider } from './security.js';
 
 describe('dependencySecurityProvider', () => {
   it('maps a dependency vulnerability into a Finding', () => {
@@ -28,5 +28,81 @@ describe('dependencySecurityProvider', () => {
     // the provider's mapping table above expects (severityToFindingSeverity keys must
     // cover every DependencyVulnerability['severity'] value), a compile-time guarantee
     // TypeScript already enforces via the Record type on severityToFindingSeverity.
+  });
+});
+
+function writeFixture(target: string, file: string, content: string): string {
+  const path = join(target, file);
+  mkdirSync(join(path, '..'), { recursive: true });
+  writeFileSync(path, content, 'utf8');
+  return path;
+}
+
+describe('basicStaticSecurityProvider', () => {
+  it('flags a hardcoded AWS-shaped access key', () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-security-'));
+    const file = writeFixture(target, 'src/config.ts', "export const key = 'AKIAABCDEFGHIJKLMNOP';\n");
+    const findings = basicStaticSecurityProvider.run(target, [file]);
+    const finding = findings.find((item) => item.ruleId === 'hardcoded-secret');
+    expect(finding).toBeDefined();
+    // hardcoded-secret findings are always 'needs_human', never silently upgraded to
+    // 'confirmed', per the spec's rule -- see security.ts's hardcodedSecretFindings.
+    expect(finding?.status).toBe('needs_human');
+  });
+
+  it('does not flag a secret read from an environment variable', () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-security-'));
+    const file = writeFixture(target, 'src/config.ts', "export const key = process.env.API_KEY;\n");
+    const findings = basicStaticSecurityProvider.run(target, [file]);
+    expect(findings.find((item) => item.ruleId === 'hardcoded-secret')).toBeUndefined();
+  });
+
+  it('flags eval(), reusing the exact pattern refactor-safety.ts blocks on', () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-security-'));
+    const file = writeFixture(target, 'src/app.ts', "eval(userInput);\n");
+    const findings = basicStaticSecurityProvider.run(target, [file]);
+    expect(findings.find((item) => item.ruleId === 'unsafe-eval')).toBeDefined();
+  });
+
+  it('flags execSync called with a template literal containing a variable', () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-security-'));
+    const file = writeFixture(target, 'src/deploy.ts', "import { execSync } from 'node:child_process';\nexecSync(`git checkout ${branch}`);\n");
+    const findings = basicStaticSecurityProvider.run(target, [file]);
+    expect(findings.find((item) => item.ruleId === 'unsafe-shell-command')).toBeDefined();
+  });
+
+  it('does not flag execFileSync (arguments are never shell-interpreted)', () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-security-'));
+    const file = writeFixture(target, 'src/deploy.ts', "import { execFileSync } from 'node:child_process';\nexecFileSync('git', ['checkout', branch]);\n");
+    const findings = basicStaticSecurityProvider.run(target, [file]);
+    expect(findings.find((item) => item.ruleId === 'unsafe-shell-command')).toBeUndefined();
+  });
+
+  it('flags a query built by template-literal interpolation', () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-security-'));
+    const file = writeFixture(target, 'src/db.ts', "db.query(`SELECT * FROM users WHERE id = ${id}`);\n");
+    const findings = basicStaticSecurityProvider.run(target, [file]);
+    expect(findings.find((item) => item.ruleId === 'sql-injection-risk')).toBeDefined();
+  });
+
+  it('does not flag a parameterized query', () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-security-'));
+    const file = writeFixture(target, 'src/db.ts', "db.query('SELECT * FROM users WHERE id = ?', [id]);\n");
+    const findings = basicStaticSecurityProvider.run(target, [file]);
+    expect(findings.find((item) => item.ruleId === 'sql-injection-risk')).toBeUndefined();
+  });
+
+  it('flags rejectUnauthorized: false', () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-security-'));
+    const file = writeFixture(target, 'src/client.ts', "const agent = new https.Agent({ rejectUnauthorized: false });\n");
+    const findings = basicStaticSecurityProvider.run(target, [file]);
+    expect(findings.find((item) => item.ruleId === 'tls-verification-disabled')).toBeDefined();
+  });
+
+  it('every finding this provider produces has a reproduce command', () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-security-'));
+    const file = writeFixture(target, 'src/app.ts', "eval(userInput);\n");
+    const findings = basicStaticSecurityProvider.run(target, [file]);
+    expect(findings.every((finding) => typeof finding.reproduce === 'string' && finding.reproduce.length > 0)).toBe(true);
   });
 });
