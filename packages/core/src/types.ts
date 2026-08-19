@@ -57,6 +57,7 @@ export interface CleanupReport {
   target: string; changedFiles: Array<{ file: string; removedDebugStatements: number; removedDebugConsoleCalls: number; removedUnusedImports: number }>;
   skippedFiles: Array<{ file: string; reason: string }>; removedDebugStatements: number; removedDebugConsoleCalls: number; removedUnusedImports: number;
 }
+export interface AiResidueCleanupReport { target: string; changedFiles: Array<{ file: string; removedMarkers: number }>; removedMarkers: number; }
 export interface UnfuckReport {
   target: string; startedAt: string; completedAt: string; status: 'no-changes' | 'verified' | 'rolled-back'; before: AuditReport; after: AuditReport;
   executionMode?: 'dry-run' | 'guided' | 'batch';

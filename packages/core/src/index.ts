@@ -21,8 +21,8 @@ export { buildArchitecturalRefactorPlan } from './refactor-planner.js';
 export { writeRefactorExecutionReport, architectureDiff } from './reporters.js';
 export { cockpitActionsHtml, cockpitHtml, menuHtml, openBrowser, releaseReadinessHtml, startCockpitServer } from './cockpit.js';
 export { demoRefactorBlock } from './refactor-block-fixture.js';
-import type { AuditReport, CleanupReport, DuplicateGroup, Finding, ImpactReport, RefactorPlan, Stack, UnderstandReport, YcfConfig } from './types.js';
-export type { AuditReport, AutoIgnoredDirectory, CleanupReport, DependencyAuditReport, DependencyVulnerability, DuplicateGroup, Finding, FindingRisk, GitCheckpoint, GitState, ImpactReport, RefactorPlan, RefactorRecommendation, ReleaseCheck, ReleaseReport, Stack, UnderstandReport, UnfuckReport, VerificationCheck, VerificationReport, YcfConfig } from './types.js';
+import type { AiResidueCleanupReport, AuditReport, CleanupReport, DuplicateGroup, Finding, ImpactReport, RefactorPlan, Stack, UnderstandReport, YcfConfig } from './types.js';
+export type { AiResidueCleanupReport, AuditReport, AutoIgnoredDirectory, CleanupReport, DependencyAuditReport, DependencyVulnerability, DuplicateGroup, Finding, FindingRisk, GitCheckpoint, GitState, ImpactReport, RefactorPlan, RefactorRecommendation, ReleaseCheck, ReleaseReport, Stack, UnderstandReport, UnfuckReport, VerificationCheck, VerificationReport, YcfConfig } from './types.js';
 export { defaultConfig, detectVendoredSdkDirs, loadConfig } from './config.js';
 export { createCheckpoint, findGitRoot, latestCheckpoint, rollbackToCheckpoint } from './git.js';
 export { verificationPlan, verify } from './verify.js';
@@ -578,6 +578,29 @@ export function cleanupDevArtifacts(target: string): CleanupReport {
     removedDebugConsoleCalls: changedFiles.reduce((total, file) => total + file.removedDebugConsoleCalls, 0),
     removedUnusedImports: changedFiles.reduce((total, file) => total + file.removedUnusedImports, 0)
   };
+}
+
+/** Removes only lines matched by AI_RESIDUE_MARKER_PATTERN -- always a full comment line,
+ *  so this can never change behavior. mystery-helper, suspicious-filename, todo-from-hell
+ *  and redundant-comment are untouched: renaming or judging intent is not mechanical. */
+export function cleanupAiResidueMarkers(target: string): AiResidueCleanupReport {
+  const resolvedTarget = resolve(target);
+  const files = sourceFilesIn(resolvedTarget).filter((file) => extname(file) !== '.php');
+  const changedFiles: AiResidueCleanupReport['changedFiles'] = [];
+  for (const file of files) {
+    const content = readFileSync(file, 'utf8');
+    const displayPath = relative(resolvedTarget, file);
+    let removed = 0;
+    let updated = '';
+    for (const match of content.matchAll(/^.*(?:\r?\n|$)/gm)) {
+      if (AI_RESIDUE_MARKER_PATTERN.test(match[0])) { removed += 1; continue; }
+      updated += match[0];
+    }
+    if (!removed) continue;
+    writeFileSync(file, updated, 'utf8');
+    changedFiles.push({ file: displayPath, removedMarkers: removed });
+  }
+  return { target: resolvedTarget, changedFiles, removedMarkers: changedFiles.reduce((total, entry) => total + entry.removedMarkers, 0) };
 }
 
 /** @deprecated Use cleanupDevArtifacts to include equally safe literal console cleanup. */
