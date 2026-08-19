@@ -37,6 +37,8 @@ Use YCF as the evidence layer before changing a repository. YCF is irreverent in
    ```
 
    Before proposing where anything should move, load the organization conventions in [references/stack-profiles.md](references/stack-profiles.md) for the detected stack and check what structure the repository already partially follows via `ycf understand .` -- extend an existing convention before inventing a new one. Present the exact old-path -> new-path mapping and the reason for each move, one block at a time. Never silently apply architectural refactors. Ask the user to approve a specific recommendation and define the verification checks before editing.
+
+   Once the user approves one or more moves in chat, write them to `.ycf/reorganization-plan.json` as an `ArchitecturalRefactorPlan` (one `MOVE` block per approved move, `mode: 'SUPERVISED'`, `reason` holding the plain-language justification already given in chat). Tell the user they can now run `ycf cockpit .` and use the "Reorganize" tab to apply, undo, or keep each move with one click, and to finalize when done -- or keep applying moves one at a time with `ycf move --dry-run`/`--yes` from the terminal if they prefer that instead. Never write this file before the user has approved the specific moves in it.
 7. Before release, run `ycf release . --dependencies`. Treat medium findings as a review gate and low findings as explicit follow-up items.
 
 ## Stack profiles
