@@ -140,9 +140,9 @@ it('flags a comment that only restates the line below it', () => {
   const target = mkdtempSync(join(tmpdir(), 'ycf-'));
   temporaryDirectories.push(target);
   writeFileSync(join(target, 'app.ts'), [
-    'export function total(items: number[]): number {',
+    'export function sumAll(items: number[]): number {',
     '  // return the total',
-    '  return items.reduce((sum, item) => sum + item, 0);',
+    '  return items.reduce((total, item) => total + item, 0);',
     '}'
   ].join('\n'));
   const report = audit(target);
