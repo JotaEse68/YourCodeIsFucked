@@ -1,0 +1,56 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
+import { startCockpitServer } from './cockpit.js';
+
+let server: ReturnType<typeof startCockpitServer> | undefined;
+afterEach(() => { server?.close(); server = undefined; });
+
+function writeReorgPlan(target: string) {
+  mkdirSync(join(target, '.ycf'), { recursive: true });
+  mkdirSync(join(target, 'legacy'), { recursive: true });
+  writeFileSync(join(target, 'legacy/greeting.ts'), 'export const greet = () => "hi";\n');
+  writeFileSync(join(target, '.ycf/reorganization-plan.json'), JSON.stringify({
+    version: 2, target, generatedAt: new Date().toISOString(),
+    summary: { auto: 0, safeRefactor: 0, supervised: 1, architectural: 0, blocked: 0 }, sourceFindings: [],
+    blocks: [{
+      id: 'RF-MOVE-001', type: 'MOVE', goal: 'reorganize', reason: 'features/ already exists', risk: 'MEDIUM', confidence: 70, mode: 'SUPERVISED',
+      files: ['legacy/greeting.ts'], dependencies: [], affectedModules: [], preconditions: [],
+      operations: [{ id: 'op-1', kind: 'MOVE', description: 'move', source: 'legacy/greeting.ts', destination: 'features/greeting.ts', updateImports: true }],
+      validation: [], rollback: [], status: 'PLANNED'
+    }]
+  }));
+}
+
+describe('Cockpit reorganization endpoints', () => {
+  it('serves the reorganization plan and applies a move', async () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-cockpit-'));
+    writeReorgPlan(target);
+    server = startCockpitServer(target, 4391);
+    const headers = { 'x-ycf-token': server.token };
+    const planResponse = await fetch(`${server.url}/plan/reorganization`, { headers });
+    expect(planResponse.status).toBe(200);
+    const planBody = await planResponse.json() as { plan: { blocks: Array<{ id: string }> } };
+    expect(planBody.plan.blocks[0].id).toBe('RF-MOVE-001');
+    const applyResponse = await fetch(`${server.url}/apply/move`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ blockId: 'RF-MOVE-001' }) });
+    expect(applyResponse.status).toBe(200);
+    const applyBody = await applyResponse.json() as { status: string };
+    expect(applyBody.status).toBe('applied');
+  });
+
+  it('returns 404 when no reorganization plan exists yet', async () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-cockpit-'));
+    server = startCockpitServer(target, 4392);
+    const response = await fetch(`${server.url}/plan/reorganization`, { headers: { 'x-ycf-token': server.token } });
+    expect(response.status).toBe(404);
+  });
+
+  it('rejects apply/move without a valid token', async () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-cockpit-'));
+    writeReorgPlan(target);
+    server = startCockpitServer(target, 4393);
+    const response = await fetch(`${server.url}/apply/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ blockId: 'RF-MOVE-001' }) });
+    expect(response.status).toBe(403);
+  });
+});

@@ -1,10 +1,14 @@
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { createServer } from 'node:http';
+import { existsSync, readFileSync } from 'node:fs';
+import { createServer, type IncomingMessage } from 'node:http';
+import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { audit, refactorPlan, releaseReadiness, understand } from './index.js';
 import { verificationPlan } from './verify.js';
 import { buildArchitecturalRefactorPlan } from './refactor-planner.js';
+import { applyReorganizationMove } from './reorganization.js';
+import type { ArchitecturalRefactorPlan } from './refactor-types.js';
 
 export function openBrowser(file: string): boolean {
   const url = /^https?:\/\//.test(file) ? file : pathToFileURL(file).href;
@@ -27,13 +31,35 @@ export function openBrowser(file: string): boolean {
   } catch { return false; }
 }
 
-// Local, read-only re-check server for the Cockpit. Binds to 127.0.0.1 only (never
-// reachable from another machine) and requires an exact per-session token on every
-// request via the x-ycf-token header. It exposes only read-only plan endpoints --
-// there is no apply/execute/write endpoint here or anywhere reachable from it.
+function reorganizationPlanPath(target: string): string { return join(resolve(target), '.ycf', 'reorganization-plan.json'); }
+
+function readReorganizationPlan(target: string): ArchitecturalRefactorPlan | undefined {
+  const path = reorganizationPlanPath(target);
+  if (!existsSync(path)) return undefined;
+  try { return JSON.parse(readFileSync(path, 'utf8')) as ArchitecturalRefactorPlan; } catch { return undefined; }
+}
+
+function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
+  return new Promise((resolvePromise, rejectPromise) => {
+    let data = '';
+    req.on('data', (chunk) => { data += chunk; });
+    req.on('end', () => { try { resolvePromise(data ? JSON.parse(data) : {}); } catch (error) { rejectPromise(error); } });
+    req.on('error', rejectPromise);
+  });
+}
+
+// Local re-check server for the Cockpit. Binds to 127.0.0.1 only (never reachable from
+// another machine) and requires an exact per-session token on every request via the
+// x-ycf-token header. Most endpoints are read-only plan endpoints; /apply/move is the
+// first write endpoint, and it only ever applies one already-planned reorganization move.
 export function startCockpitServer(target: string, port: number, onError?: (error: Error) => void): { url: string; token: string; close: () => void } {
   const token = randomBytes(16).toString('hex');
-  const server = createServer((req, res) => {
+  // Per-server-instance only, by design -- see docs/superpowers/specs/2026-08-19-ai-residue-and-cockpit-reorg-design.md.
+  // Undo/Keep only work while this exact process is still running; restarting Cockpit loses
+  // this map, but every applied change is already sitting uncommitted in the working tree,
+  // recoverable with plain git like any other YCF change.
+  const appliedMoves = new Map<string, Extract<ReturnType<typeof applyReorganizationMove>, { status: 'applied' }>>();
+  const server = createServer(async (req, res) => {
     // The cockpit HTML is opened via file:// (or occasionally served on a different
     // port), so the browser treats every request here as cross-origin and preflights
     // it because of the custom x-ycf-token header. The per-session random token, not
@@ -61,6 +87,27 @@ export function startCockpitServer(target: string, port: number, onError?: (erro
     if (url.pathname === '/plan/audit') { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(audit(target))); return; }
     if (url.pathname === '/plan/refactor') { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(refactorPlan(target))); return; }
     if (url.pathname === '/plan/architectural') { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(buildArchitecturalRefactorPlan(target))); return; }
+    if (url.pathname === '/plan/reorganization') {
+      const plan = readReorganizationPlan(target);
+      if (!plan) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'no reorganization plan yet' })); return; }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ plan, applied: [...appliedMoves.keys()] }));
+      return;
+    }
+    if (req.method === 'POST' && url.pathname === '/apply/move') {
+      const body = await readJsonBody(req);
+      const blockId = String(body.blockId ?? '');
+      const plan = readReorganizationPlan(target);
+      const block = plan?.blocks.find((candidate) => candidate.id === blockId);
+      if (!block) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'unknown blockId' })); return; }
+      if (appliedMoves.has(blockId)) { res.writeHead(409, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'already applied this session' })); return; }
+      const result = applyReorganizationMove(target, block);
+      if (result.status === 'rolled_back') { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ status: 'rolled_back', error: result.error })); return; }
+      appliedMoves.set(blockId, result);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'applied', changedFiles: result.changedFiles }));
+      return;
+    }
     res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'not found' }));
   });
   server.on('error', onError ?? (() => {}));
