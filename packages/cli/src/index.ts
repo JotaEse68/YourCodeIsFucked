@@ -6,7 +6,7 @@ import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
-import { aiResidueFindings, audit, buildArchitecturalRefactorPlan, cleanupDevArtifacts, cockpitActionsHtml, cockpitHtml, createCheckpoint, dependencyAudit, dependencyAuditPlan, executeRefactorPlan, impactAnalysis, latestCheckpoint, loadConfig, openBrowser, refactorPlan, releaseCheckLabel, releaseHeading, releaseReadiness, releaseReportLabel, rollbackToCheckpoint, startCockpitServer, understand, verificationPlan, verify, writeAuditReport, writeDependencyAuditReport, writeReleaseReport, writeRefactorExecutionReport, writeUnfuckReport } from '@jotaese68/core';
+import { aiResidueFindings, audit, buildArchitecturalRefactorPlan, cleanupAiResidueMarkers, cleanupDevArtifacts, cockpitActionsHtml, cockpitHtml, createCheckpoint, dependencyAudit, dependencyAuditPlan, executeRefactorPlan, impactAnalysis, latestCheckpoint, loadConfig, openBrowser, refactorPlan, releaseCheckLabel, releaseHeading, releaseReadiness, releaseReportLabel, rollbackToCheckpoint, startCockpitServer, understand, verificationPlan, verify, writeAuditReport, writeDependencyAuditReport, writeReleaseReport, writeRefactorExecutionReport, writeUnfuckReport } from '@jotaese68/core';
 
 // pnpm forwards a standalone `--` to package scripts on some platforms.
 if (process.argv[2] === '--') process.argv.splice(2, 1);
@@ -409,12 +409,33 @@ program.command('move <source> <destination> [target]').description('Move one mo
   }
 });
 
-program.command('ai-residue [target]').description('Find AI/dev residue candidates without modifying code or attribution.').option('--json', 'Emit findings as JSON.').action((target = '.', options) => {
+program.command('ai-residue [target]').description('Find AI/dev residue candidates; --yes removes only mechanically-safe comment markers.').option('--json', 'Emit findings as JSON.').option('--dry-run', 'Show the planned removal without changing files.').option('--yes', 'Confirm removal of AI-residue comment markers.').action((target = '.', options) => {
   const findings = aiResidueFindings(target);
   if (options.json) { console.log(JSON.stringify(findings, null, 2)); return; }
-  console.log(`AI/dev residue candidates: ${findings.length}`);
-  for (const finding of findings) console.log(`[${finding.risk}] ${finding.file}${finding.lines.length ? `:${finding.lines.join(',')}` : ''} — ${finding.evidence}`);
-  console.log('No code, licenses, copyright notices, or attribution were modified.');
+  const markers = findings.filter((finding) => finding.ruleId === 'ai-residue');
+  const plannedLines = markers.reduce((total, finding) => total + finding.lines.length, 0);
+  if (options.dryRun || !options.yes) {
+    console.log(`AI/dev residue candidates: ${findings.length}`);
+    for (const finding of findings) console.log(`[${finding.risk}] ${finding.file}${finding.lines.length ? `:${finding.lines.join(',')}` : ''} — ${finding.evidence}`);
+    console.log(`Mechanically-safe to remove with --yes: ${plannedLines} comment marker(s) (ruleId "ai-residue" only). Everything else stays for your review.`);
+    console.log('No code, licenses, copyright notices, or attribution were modified.');
+    return;
+  }
+  if (!plannedLines) { console.log('No parser-confirmed AI-residue comment markers found.'); return; }
+  const checkpoint = createCheckpoint(target);
+  const cleanup = cleanupAiResidueMarkers(target);
+  const verification = verify(target);
+  if (!verification.passed) {
+    rollbackToCheckpoint(target, checkpoint);
+    console.error(`Verification failed. Restored checkpoint ${checkpoint.commit}.`);
+    process.exitCode = 1;
+    return;
+  }
+  console.log(`AI-residue cleanup complete: removed ${cleanup.removedMarkers} marker(s) in ${cleanup.changedFiles.length} file(s).`);
+  console.log('Review the Git diff before committing:');
+  console.log(gitDiffSummary(target));
+  console.log(`Checkpoint retained: ${checkpoint.ref}`);
+  console.log('Verification passed.');
 });
 
 function gitDiffSummary(target: string): string {
