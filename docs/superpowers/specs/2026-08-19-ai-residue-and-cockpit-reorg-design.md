@@ -102,10 +102,36 @@ the user approved it in chat.*
   with a clear "no plan yet" body otherwise. Read-only, same pattern as the three existing
   `/plan/*` routes.
 - `POST /apply/move` `{ blockId }` -- looks up the block in the plan file, runs
-  `applyRefactorOperation` for its one operation, then `verify()`. On failure: calls the
-  operation's `undo()` immediately, responds with the failure reason, block stays `PENDING`.
-  On success: keeps the `AppliedOperation` (including its `undo` closure) in an in-memory
+  `applyRefactorOperation` for its one operation, then a **fast** verification pass
+  (lint + typecheck only, reusing the same FAST-check filtering `runVerification` already
+  does internally in `refactor-executor.ts` -- export or duplicate that helper rather than
+  running the full lint/typecheck/test/build suite on every single click, which would make
+  a 20-move session unusably slow). On failure: calls the operation's `undo()` immediately,
+  responds with the failure reason, block stays `PENDING`. On success: keeps the
+  `AppliedOperation` (including its `undo` closure) in an in-memory
   `Map<blockId, AppliedOperation>` scoped to this server instance, responds `APPLIED`.
+  A full verification run happens once, at `/finalize`, not per move.
+
+  **Deliberately does not call `executeRefactorPlan`.** That function is a correct fit for
+  batch/unattended runs, but on success it discards the `AppliedOperation[]` (and therefore
+  every `undo` closure) before returning -- its `RefactorExecutionReport` is JSON-serializable
+  by design, so it cannot carry live closures back to the caller. The Undo button needs
+  exactly the closure `executeRefactorPlan` throws away, so this is a small, new, dedicated
+  function (`applyReorganizationMove(target, block)` in `refactor-operations.ts` or a new
+  module), not a wrapper around the batch executor. It also skips
+  `beginCheckpointJournal`/the persistent git-ref checkpoint journal entirely -- that journal
+  exists for crash-recovery mid-batch-run, and (see below) its per-block "before" ref isn't
+  actually usable for surgical single-move undo here anyway, so there is nothing to gain by
+  writing to it.
+
+  *Why not the persisted git-ref journal for Undo:* `updateBlockCheckpoint` snapshots
+  whatever `HEAD` is at the moment a block starts running. Because YCF never commits on the
+  user's behalf between applied moves, `HEAD` does not move between clicks -- every move's
+  "before" ref would point at the same original commit. Resetting to it would discard every
+  other already-applied move sitting uncommitted in the working tree alongside it, not just
+  the one being undone. Only the operation's own in-memory `undo()` (a targeted, file-level
+  reverse of just that move) does the right thing, which is why the limitation below is
+  real and worth stating plainly rather than working around.
 - `POST /undo/move` `{ blockId }` -- calls the cached `AppliedOperation.undo()`, removes it
   from the map, responds `PENDING`.
 - `POST /keep/move` `{ blockId }` -- drops the cached entry from the map without calling
@@ -116,10 +142,15 @@ the user approved it in chat.*
   `writeRefactorExecutionReport`), and returns the summary for display. Does **not** touch
   git by itself.
 - `POST /finalize/publish` `{ push: boolean }` -- only reachable after `/finalize`. Stages
-  and commits the changed files locally; if `push` is true, pushes to the current branch's
-  upstream. Requires a second explicit confirmation client-side before this call is ever
-  made (see UI below). If there is no configured remote/upstream, responds with a clear
-  error and the commit still stands locally -- never silently fails or retries.
+  **only the files this session actually changed** (the union of every applied block's
+  `changedFiles`, tracked already in the in-memory map) with explicit `git add <path>...`
+  calls, then commits -- never `git add -A` / `git commit -a`. This matters: a user can
+  open `ycf cockpit` while other, unrelated work is already sitting uncommitted in the same
+  repo, and a blanket stage-everything would silently sweep that in. If `push` is true,
+  pushes to the current branch's upstream. Requires a second explicit confirmation
+  client-side before this call is ever made (see UI below). If there is no configured
+  remote/upstream, responds with a clear error and the commit still stands locally -- never
+  silently fails or retries.
 
 ### Explicit, stated limitation (surfaced in the UI, not hidden)
 
