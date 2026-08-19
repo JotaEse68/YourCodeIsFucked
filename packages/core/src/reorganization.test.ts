@@ -64,4 +64,23 @@ describe('applyReorganizationMove', () => {
     expect(existsSync(join(target, 'legacy/b.ts'))).toBe(true);
     expect(existsSync(join(target, 'features/b.ts'))).toBe(false);
   });
+
+  it('rolls back automatically when the real post-apply verification fails, not just a pre-flight error', () => {
+    // No test fixture elsewhere includes a package.json, so verifyFast/verificationPlan always
+    // returned no checks and passed vacuously -- every prior rolled_back assertion came from a
+    // pre-flight error (source does not exist), never from an actual failed verification check.
+    // This fixture gives verifyFast a real, always-failing lint script to run after a real,
+    // successful MOVE, exercising the genuine post-apply rollback path for the first time.
+    const target = mkdtempSync(join(tmpdir(), 'ycf-reorg-'));
+    writeFileSync(join(target, 'package.json'), JSON.stringify({ name: 'fixture', scripts: { lint: 'node -e "process.exit(1)"' } }));
+    mkdirSync(join(target, 'legacy'), { recursive: true });
+    writeFileSync(join(target, 'legacy/greeting.ts'), 'export const greet = () => "hi";\n');
+    const result = applyReorganizationMove(target, block('RF-MOVE-004', 'legacy/greeting.ts', 'features/greeting.ts'));
+    expect(result.status).toBe('rolled_back');
+    if (result.status !== 'rolled_back') throw new Error('expected rolled_back');
+    expect(result.error).toMatch(/lint/i);
+    // The move itself succeeded before verification ran, so undo must have restored the file.
+    expect(existsSync(join(target, 'legacy/greeting.ts'))).toBe(true);
+    expect(existsSync(join(target, 'features/greeting.ts'))).toBe(false);
+  });
 });

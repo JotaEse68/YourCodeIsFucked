@@ -789,4 +789,26 @@ describe('stack detection', () => {
     expect(after).not.toContain('ai-residue');
     expect(after).toEqual(expect.arrayContaining(['mystery-helper', 'redundant-comment']));
   });
+
+  it('cleanupAiResidueMarkers also removes ai-residue comment lines from .php files', () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(target);
+    writeFileSync(join(target, 'legacy.php'), [
+      '<?php',
+      '# temporary fix, remove before release',
+      'function doThing() {',
+      '  return true;',
+      '}'
+    ].join('\n'));
+    const findingsBefore = aiResidueFindings(target);
+    expect(findingsBefore.some((item) => item.ruleId === 'ai-residue' && item.file === 'legacy.php')).toBe(true);
+    const cleanup = cleanupAiResidueMarkers(target);
+    expect(cleanup.changedFiles).toContainEqual(expect.objectContaining({ file: 'legacy.php' }));
+    expect(cleanup.removedMarkers).toBe(1);
+    const content = readFileSync(join(target, 'legacy.php'), 'utf8');
+    expect(content).not.toContain('temporary fix');
+    expect(content).toContain('function doThing');
+    const findingsAfter = aiResidueFindings(target);
+    expect(findingsAfter.some((item) => item.ruleId === 'ai-residue')).toBe(false);
+  });
 });

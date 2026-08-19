@@ -523,7 +523,7 @@ export function audit(target: string): AuditReport {
 }
 
 export function aiResidueFindings(target: string): Finding[] {
-  const residueRules = new Set<Finding['ruleId']>(['ai-residue', 'suspicious-filename', 'debug-statements', 'debug-console']);
+  const residueRules = new Set<Finding['ruleId']>(['ai-residue', 'suspicious-filename', 'debug-statements', 'debug-console', 'mystery-helper', 'redundant-comment']);
   return audit(target).findings.filter((finding) => residueRules.has(finding.ruleId));
 }
 
@@ -586,7 +586,7 @@ export function cleanupDevArtifacts(target: string): CleanupReport {
  *  and redundant-comment are untouched: renaming or judging intent is not mechanical. */
 export function cleanupAiResidueMarkers(target: string): AiResidueCleanupReport {
   const resolvedTarget = resolve(target);
-  const files = sourceFilesIn(resolvedTarget).filter((file) => extname(file) !== '.php');
+  const files = sourceFilesIn(resolvedTarget);
   const changedFiles: AiResidueCleanupReport['changedFiles'] = [];
   for (const file of files) {
     const content = readFileSync(file, 'utf8');

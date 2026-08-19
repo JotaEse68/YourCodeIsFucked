@@ -302,7 +302,7 @@ program.command('cockpit [target]').description('Write and open a self-contained
     server = startCockpitServer(resolvedTarget, 4287);
     bootstrap = `<script>window.__YCF_COCKPIT__=${JSON.stringify({ token: server.token, base: server.url })};</script>`;
     process.on('SIGINT', () => { server?.close(); process.exit(0); });
-    console.log(`YCF — local read-only server running at ${server.url} (Ctrl+C to stop).`);
+    console.log(`YCF — local server running at ${server.url} (Ctrl+C to stop).`);
   }
   const cockpit = cockpitHtml(report, auditReport, verificationPlan(resolvedTarget)).replace('</body>', `${bootstrap}${cockpitActionsHtml()}</body>`);
   writeFileSync(cockpitPath, cockpit, 'utf8');
