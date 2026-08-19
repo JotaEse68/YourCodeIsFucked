@@ -1,8 +1,11 @@
 import { readFileSync } from 'node:fs';
-import { relative } from 'node:path';
+import { extname, relative } from 'node:path';
 import { dependencyAudit } from './dependencies.js';
 import { unsafeRuntimeCodePattern } from './refactor-safety.js';
+import { typescriptFindings } from './typescript.js';
+import { SECURITY_RELEVANT_RULE_IDS } from './types.js';
 import type { DependencyVulnerability, Finding } from './types.js';
+import { wordpressAjaxFindings, wordpressDataFlowFindings, wordpressDestructiveOperationFindings, wordpressFindings, wordpressPrivilegeEscalationFindings, wordpressRestFindings, wordpressRestPersistenceFindings, wordpressSensitiveExposureFindings } from './wordpress.js';
 
 export interface SecurityCheckProvider { name: string; run(target: string, files: string[]): Finding[]; }
 
@@ -77,15 +80,36 @@ function tlsVerificationDisabledFindings(target: string, file: string): Finding[
   return [{ id: `tls-verification-disabled:${display}`, ruleId: 'tls-verification-disabled', severity: 'medium', risk: 'report-only', file: display, lines, evidence: `${lines.length} location(s) disable TLS/SSL certificate verification. This accepts any certificate, including a forged one.`, scoreImpact: 8, confidence: 95, reproduce: `ycf audit . --json | jq '.findings[] | select(.ruleId=="tls-verification-disabled")'`, status: 'confirmed' }];
 }
 
+// Deliberate scope trim: sensitive-repository-file/-tracked findings are produced by a
+// function defined inside index.ts itself, not a leaf module. Reusing them here would
+// require importing from index.ts, creating the exact import cycle this plan's Global
+// Constraints forbid (security.ts must stay a leaf module). They remain fully present in
+// `ycf audit`'s security score dimension; they are just not summed into this check.
+function reusedSecurityFindings(target: string, files: string[]): Finding[] {
+  const relevant = new Set(SECURITY_RELEVANT_RULE_IDS);
+  const wordpressSources = files.filter((file) => extname(file) === '.php').map((file) => ({ path: relative(target, file) || file, content: readFileSync(file, 'utf8') }));
+  const wordpressPerFile = wordpressSources.flatMap((source) => wordpressFindings(source.path, source.content));
+  const wordpressBulk = [...wordpressAjaxFindings(wordpressSources), ...wordpressDataFlowFindings(wordpressSources), ...wordpressRestFindings(wordpressSources), ...wordpressRestPersistenceFindings(wordpressSources), ...wordpressDestructiveOperationFindings(wordpressSources), ...wordpressPrivilegeEscalationFindings(wordpressSources), ...wordpressSensitiveExposureFindings(wordpressSources)];
+  const typescript = files.flatMap((file) => typescriptFindings(file, readFileSync(file, 'utf8'), relative(target, file) || file));
+  return [...wordpressPerFile, ...wordpressBulk, ...typescript].filter((finding) => relevant.has(finding.ruleId));
+}
+
 export const basicStaticSecurityProvider: SecurityCheckProvider = {
   name: 'basic-static-security',
   run(target, files) {
-    return files.flatMap((file) => [
-      ...hardcodedSecretFindings(target, file),
-      ...unsafeEvalFindings(target, file),
-      ...unsafeShellCommandFindings(target, file),
-      ...sqlInjectionRiskFindings(target, file),
-      ...tlsVerificationDisabledFindings(target, file)
-    ]);
+    return [
+      ...files.flatMap((file) => [
+        ...hardcodedSecretFindings(target, file),
+        ...unsafeEvalFindings(target, file),
+        ...unsafeShellCommandFindings(target, file),
+        ...sqlInjectionRiskFindings(target, file),
+        ...tlsVerificationDisabledFindings(target, file)
+      ]),
+      ...reusedSecurityFindings(target, files)
+    ];
   }
 };
+
+export function runSecurityChecks(target: string, files: string[]): Finding[] {
+  return [dependencySecurityProvider, basicStaticSecurityProvider].flatMap((provider) => provider.run(target, files));
+}

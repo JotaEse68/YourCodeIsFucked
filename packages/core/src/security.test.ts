@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseDependencyAudit } from './dependencies.js';
-import { basicStaticSecurityProvider, dependencySecurityProvider } from './security.js';
+import { basicStaticSecurityProvider, dependencySecurityProvider, runSecurityChecks } from './security.js';
 
 describe('dependencySecurityProvider', () => {
   it('maps a dependency vulnerability into a Finding', () => {
@@ -104,5 +104,34 @@ describe('basicStaticSecurityProvider', () => {
     const file = writeFixture(target, 'src/app.ts', "eval(userInput);\n");
     const findings = basicStaticSecurityProvider.run(target, [file]);
     expect(findings.every((finding) => typeof finding.reproduce === 'string' && finding.reproduce.length > 0)).toBe(true);
+  });
+});
+
+describe('runSecurityChecks', () => {
+  it('combines findings from both providers', () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-security-'));
+    const file = writeFixture(target, 'src/app.ts', "eval(userInput);\n");
+    const findings = runSecurityChecks(target, [file]);
+    expect(findings.some((finding) => finding.ruleId === 'unsafe-eval')).toBe(true);
+  });
+
+  it('surfaces a security-relevant WordPress finding under the security check', () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-security-'));
+    // Fixture verified against packages/core/src/index.test.ts:327 ("reports direct
+    // variable interpolation in $wpdb SQL but accepts $wpdb->prepare"), which proves
+    // this exact snippet fires wordpress-wpdb-unprepared-query in wordpress.ts.
+    const file = writeFixture(target, 'includes/query.php', '<?php\n$wpdb->query("DELETE FROM wp_profiles WHERE id = $id");\n');
+    const findings = runSecurityChecks(target, [file]);
+    expect(findings.some((finding) => finding.ruleId === 'wordpress-wpdb-unprepared-query')).toBe(true);
+  });
+
+  it('does not surface a WordPress finding whose ruleId is outside SECURITY_RELEVANT_RULE_IDS', () => {
+    // wordpress-dynamic-entrypoint (a *-review finding about a registered hook, not a
+    // vulnerability) is intentionally NOT in SECURITY_RELEVANT_RULE_IDS -- confirm it
+    // never leaks through runSecurityChecks even if the fixture file triggers it.
+    const target = mkdtempSync(join(tmpdir(), 'ycf-security-'));
+    const file = writeFixture(target, 'includes/hooks.php', "<?php\nadd_action('init', 'my_init_fn');\nfunction my_init_fn() {}\n");
+    const findings = runSecurityChecks(target, [file]);
+    expect(findings.some((finding) => finding.ruleId === 'wordpress-dynamic-entrypoint')).toBe(false);
   });
 });
