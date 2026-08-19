@@ -23,7 +23,10 @@ export function createReleaseReadiness(audit: (target: string) => AuditReport, u
     const verification = verify(directory);
     const mediumFindings = auditReport.findings.filter((finding) => finding.severity === 'medium');
     const lowFindings = auditReport.findings.filter((finding) => finding.severity === 'low');
-    const ranChecks = verification.checks.filter((check) => check.status !== 'skipped');
+    // 'security' always runs as part of FULL VERIFY (it has no package.json script to be
+    // "declared"), so it is excluded here -- this count is specifically about whether any
+    // lint/typecheck/test/build script was declared for the release-readiness warning below.
+    const ranChecks = verification.checks.filter((check) => check.status !== 'skipped' && check.name !== 'security');
     const checks: ReleaseCheck[] = [
       gitCheck(directory),
       mediumFindings.length

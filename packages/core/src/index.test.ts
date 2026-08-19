@@ -685,7 +685,8 @@ describe('stack detection', () => {
       { name: 'lint', status: 'skipped', output: 'No matching package script.' },
       { name: 'typecheck', status: 'skipped', output: 'No matching package script.' },
       { name: 'test', command: ['corepack', 'pnpm', 'run', 'test'] },
-      { name: 'build', command: ['corepack', 'pnpm', 'run', 'build'] }
+      { name: 'build', command: ['corepack', 'pnpm', 'run', 'build'] },
+      { name: 'security', status: 'skipped' }
     ]);
   });
 

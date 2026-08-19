@@ -6,7 +6,9 @@ export const ignoredDirectories = new Set(['.git', 'node_modules', 'dist', 'buil
 
 export const defaultConfig: YcfConfig = {
   version: 1, mode: 'balanced', language: 'en', audience: 'guided',
-  refactor: { maxFileLines: 700, maxFunctionLines: 80, maxComplexity: 15 }, ignore: [...ignoredDirectories], include: []
+  refactor: { maxFileLines: 700, maxFunctionLines: 80, maxComplexity: 15 },
+  security: { dependencyFailOn: 'high' },
+  ignore: [...ignoredDirectories], include: []
 };
 
 function normalizeConfigKey(value: string): string { return value.trim().replace(/^['"]|['"]$/g, ''); }
@@ -14,8 +16,8 @@ function normalizeConfigKey(value: string): string { return value.trim().replace
 /** Read the small, dependency-free subset of YAML used by ycf.config.yml. */
 export function loadConfig(target: string): YcfConfig {
   const configPath = join(resolve(target), 'ycf.config.yml');
-  if (!existsSync(configPath)) return { ...defaultConfig, refactor: { ...defaultConfig.refactor }, ignore: [...defaultConfig.ignore], include: [] };
-  const config = { ...defaultConfig, refactor: { ...defaultConfig.refactor }, ignore: [] as string[], include: [] as string[] };
+  if (!existsSync(configPath)) return { ...defaultConfig, refactor: { ...defaultConfig.refactor }, security: { ...defaultConfig.security }, ignore: [...defaultConfig.ignore], include: [] };
+  const config = { ...defaultConfig, refactor: { ...defaultConfig.refactor }, security: { ...defaultConfig.security }, ignore: [] as string[], include: [] as string[] };
   let section = '';
   for (const rawLine of readFileSync(configPath, 'utf8').split(/\r?\n/)) {
     const line = rawLine.replace(/\s+#.*$/, '');
@@ -39,6 +41,7 @@ export function loadConfig(target: string): YcfConfig {
         if (key === 'max_complexity') config.refactor.maxComplexity = number;
       }
     }
+    if (section === 'security' && key === 'dependency_fail_on' && /^(low|moderate|high|critical|none)$/.test(value.trim())) config.security.dependencyFailOn = value.trim() as YcfConfig['security']['dependencyFailOn'];
   }
   return config;
 }

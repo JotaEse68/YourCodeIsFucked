@@ -20,7 +20,9 @@ export interface AuditReport {
 }
 export interface YcfConfig {
   version: 1; mode: 'conservative' | 'balanced' | 'aggressive'; language: Language; audience: Audience;
-  refactor: { maxFileLines: number; maxFunctionLines: number; maxComplexity: number }; ignore: string[]; include: string[];
+  refactor: { maxFileLines: number; maxFunctionLines: number; maxComplexity: number };
+  security: { dependencyFailOn: 'low' | 'moderate' | 'high' | 'critical' | 'none' };
+  ignore: string[]; include: string[];
 }
 export interface AutoIgnoredDirectory { path: string; reason: 'vendored-sdk'; files: number; }
 export interface DuplicateGroup {
@@ -47,7 +49,7 @@ export interface ImpactReport {
   cycles: string[][];
   limitation: string;
 }
-export interface VerificationCheck { name: 'lint' | 'typecheck' | 'test' | 'build'; command: string[]; status: 'passed' | 'failed' | 'skipped'; output?: string; }
+export interface VerificationCheck { name: 'lint' | 'typecheck' | 'test' | 'build' | 'security'; command: string[]; status: 'passed' | 'failed' | 'skipped'; output?: string; }
 export interface VerificationReport { target: string; verifiedAt: string; checks: VerificationCheck[]; passed: boolean; }
 export interface DependencyVulnerability { name: string; severity: 'low' | 'moderate' | 'high' | 'critical' | 'unknown'; fixAvailable: boolean; }
 export interface DependencyAuditReport { target: string; auditedAt: string; manager: 'npm' | 'pnpm' | 'unknown'; command: string[]; available: boolean; vulnerabilities: DependencyVulnerability[]; error?: string; }
