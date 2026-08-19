@@ -309,7 +309,7 @@ program.command('cockpit [target]').description('Write and open a self-contained
   console.log('YCF — Fuck-O-Meter ready.');
   if (options.open !== false && openBrowser(cockpitPath)) console.log(`Opened in your browser: ${cockpitPath}`);
   else console.log(`Open this file in your browser: ${cockpitPath}`);
-  console.log(server ? 'Read-only: it does not modify source files. The local server only serves read-only plan data and never applies changes.' : 'Read-only: it does not modify source files or start a server.');
+  console.log(server ? 'Audit and Overview tabs are read-only. The Reorganize tab can apply a move only if you already approved it with an AI agent and it wrote .ycf/reorganization-plan.json -- every apply still requires your click.' : 'Read-only: it does not modify source files or start a server.');
 });
 
 program.command('impact <module> [target]').description('Explain the statically visible change surface of one module without modifying files.').option('--json', 'Emit the complete impact report as JSON.').action((module, target = '.', options) => {
