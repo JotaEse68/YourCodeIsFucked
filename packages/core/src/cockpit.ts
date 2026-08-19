@@ -65,6 +65,7 @@ export function startCockpitServer(target: string, port: number, onError?: (erro
   // this map, but every applied change is already sitting uncommitted in the working tree,
   // recoverable with plain git like any other YCF change.
   const appliedMoves = new Map<string, Extract<ReturnType<typeof applyReorganizationMove>, { status: 'applied' }>>();
+  const keptMoves = new Set<string>();
   const server = createServer(async (req, res) => {
     // The cockpit HTML is opened via file:// (or occasionally served on a different
     // port), so the browser treats every request here as cross-origin and preflights
@@ -97,7 +98,7 @@ export function startCockpitServer(target: string, port: number, onError?: (erro
       const plan = readReorganizationPlan(target);
       if (!plan) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'no reorganization plan yet' })); return; }
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ plan, applied: [...appliedMoves.keys()] }));
+      res.end(JSON.stringify({ plan, applied: [...appliedMoves.keys()], kept: [...keptMoves] }));
       return;
     }
     if (req.method === 'POST' && url.pathname === '/apply/move') {
@@ -115,6 +116,26 @@ export function startCockpitServer(target: string, port: number, onError?: (erro
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ status: 'applied', changedFiles: result.changedFiles }));
       return;
+    }
+    if (req.method === 'POST' && url.pathname === '/undo/move') {
+      let body: Record<string, unknown>;
+      try { body = await readJsonBody(req); }
+      catch { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'invalid request body' })); return; }
+      const blockId = String(body.blockId ?? '');
+      const applied = appliedMoves.get(blockId);
+      if (!applied || keptMoves.has(blockId)) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'no undoable applied move with that blockId in this session' })); return; }
+      for (const operation of [...applied.applied].reverse()) operation.undo();
+      appliedMoves.delete(blockId);
+      res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ status: 'pending' })); return;
+    }
+    if (req.method === 'POST' && url.pathname === '/keep/move') {
+      let body: Record<string, unknown>;
+      try { body = await readJsonBody(req); }
+      catch { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'invalid request body' })); return; }
+      const blockId = String(body.blockId ?? '');
+      if (!appliedMoves.has(blockId)) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'no applied move with that blockId in this session' })); return; }
+      keptMoves.add(blockId);
+      res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ status: 'kept' })); return;
     }
     res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'not found' }));
   });

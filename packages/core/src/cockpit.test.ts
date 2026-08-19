@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -69,5 +69,30 @@ describe('Cockpit reorganization endpoints', () => {
     expect(followUpResponse.status).toBe(200);
     const followUpBody = await followUpResponse.json() as { status: string };
     expect(followUpBody.status).toBe('applied');
+  });
+
+  it('undo reverses an applied move back to pending', async () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-cockpit-'));
+    writeReorgPlan(target);
+    server = startCockpitServer(target, 4396);
+    const headers = { 'x-ycf-token': server.token, 'Content-Type': 'application/json' };
+    await fetch(`${server.url}/apply/move`, { method: 'POST', headers, body: JSON.stringify({ blockId: 'RF-MOVE-001' }) });
+    const undoResponse = await fetch(`${server.url}/undo/move`, { method: 'POST', headers, body: JSON.stringify({ blockId: 'RF-MOVE-001' }) });
+    expect(undoResponse.status).toBe(200);
+    expect(existsSync(join(target, 'legacy/greeting.ts'))).toBe(true);
+    expect(existsSync(join(target, 'features/greeting.ts'))).toBe(false);
+  });
+
+  it('keep drops the undo option without touching the file system', async () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-cockpit-'));
+    writeReorgPlan(target);
+    server = startCockpitServer(target, 4397);
+    const headers = { 'x-ycf-token': server.token, 'Content-Type': 'application/json' };
+    await fetch(`${server.url}/apply/move`, { method: 'POST', headers, body: JSON.stringify({ blockId: 'RF-MOVE-001' }) });
+    const keepResponse = await fetch(`${server.url}/keep/move`, { method: 'POST', headers, body: JSON.stringify({ blockId: 'RF-MOVE-001' }) });
+    expect(keepResponse.status).toBe(200);
+    const undoResponse = await fetch(`${server.url}/undo/move`, { method: 'POST', headers, body: JSON.stringify({ blockId: 'RF-MOVE-001' }) });
+    expect(undoResponse.status).toBe(404);
+    expect(existsSync(join(target, 'features/greeting.ts'))).toBe(true);
   });
 });
