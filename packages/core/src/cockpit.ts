@@ -145,7 +145,7 @@ export function startCockpitServer(target: string, port: number, onError?: (erro
       catch { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'invalid request body' })); return; }
       const afterArchitecture = understand(target).graph;
       const afterScore = audit(target).score.fucked;
-      const diff = architectureDiff(baseline?.architecture, afterArchitecture);
+      const diff = architectureDiff(baseline?.architecture ?? afterArchitecture, afterArchitecture);
       const summary = { appliedBlockIds: [...appliedMoves.keys()], keptBlockIds: [...keptMoves], beforeScore: baseline?.score ?? afterScore, afterScore, architecture: diff };
       const paths = writeReorganizationReport(target, summary);
       res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ...summary, reportPath: paths.markdownPath })); return;

@@ -108,4 +108,27 @@ describe('Cockpit reorganization endpoints', () => {
     expect(body.appliedBlockIds).toEqual(['RF-MOVE-001']);
     expect(existsSync(body.reportPath)).toBe(true);
   });
+
+  it('finalize produces a no-op architecture diff when nothing was applied this session', async () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-cockpit-'));
+    // Real modules with a real dependency edge must already exist, so that if the
+    // baseline were treated as an empty graph, the diff would show them as added.
+    mkdirSync(join(target, 'src'), { recursive: true });
+    writeFileSync(join(target, 'src/util.ts'), 'export const util = () => "util";\n');
+    writeFileSync(join(target, 'src/index.ts'), 'import { util } from "./util.js";\nexport const run = () => util();\n');
+    server = startCockpitServer(target, 4399);
+    const headers = { 'x-ycf-token': server.token, 'Content-Type': 'application/json' };
+    // No /apply/move call here -- baseline is never captured.
+    const response = await fetch(`${server.url}/finalize`, { method: 'POST', headers, body: '{}' });
+    expect(response.status).toBe(200);
+    const body = await response.json() as {
+      appliedBlockIds: string[];
+      architecture: { addedModules: unknown[]; removedModules: unknown[]; addedEdges: number; removedEdges: number };
+    };
+    expect(body.appliedBlockIds).toEqual([]);
+    expect(body.architecture.addedModules).toEqual([]);
+    expect(body.architecture.removedModules).toEqual([]);
+    expect(body.architecture.addedEdges).toBe(0);
+    expect(body.architecture.removedEdges).toBe(0);
+  });
 });
