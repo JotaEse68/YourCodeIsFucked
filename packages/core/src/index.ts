@@ -200,6 +200,12 @@ function reactAsyncEffectsWithoutCleanup(file: string, content: string): number[
   return lines;
 }
 
+// Shared with cleanupAiResidueMarkers below -- a line that matches here is always a full
+// comment line, so removing it can never change behavior. Widen this to catch more
+// leftover assistant phrasing, but never widen it to match anything that isn't a pure
+// comment line, since --yes deletes every match verbatim.
+const AI_RESIDUE_MARKER_PATTERN = /^\s*(?:\/\/|\/\*|\*|#).*\b(?:temporary\s+fix|todo\s*:\s*(?:remove|delete)|final-final|backup copy|(?:generated|written|added)\s+by\s+(?:ai|an\s+ai\s+assistant|copilot|chatgpt|claude|codex)|as an ai (?:language model|assistant))\b/i;
+
 function analyzeFile(target: string, file: string, config: YcfConfig): Finding[] {
   const findings: Finding[] = [];
   const content = readFileSync(file, 'utf8');
@@ -257,7 +263,7 @@ function analyzeFile(target: string, file: string, config: YcfConfig): Finding[]
       scoreImpact: Math.min(unusedImportLines.length * 2, 10)
     });
   }
-  const residueLines = lineNumbers(content, /^\s*(?:\/\/|\/\*|\*|#).*\b(?:temporary\s+fix|todo\s*:\s*(?:remove|delete)|final-final|backup copy)\b/i);
+  const residueLines = lineNumbers(content, AI_RESIDUE_MARKER_PATTERN);
   if (residueLines.length > 0) {
     findings.push({
       id: `ai-residue:${displayPath}`,
