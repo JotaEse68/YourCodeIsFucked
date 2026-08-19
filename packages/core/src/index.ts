@@ -15,6 +15,7 @@ import { isExternalConnectionFile } from './refactor-safety.js';
 import { lineAt, lineNumbers } from './text-utils.js';
 export type { ArchitecturalRefactorPlan, RefactorBlock, RefactorExecutionReport, RefactorOperation, RefactorBlockStatus, RiskLevel, SafetyMode, RefactorOperationKind, OperationRecord, RollbackEvent, RollbackStep, VerificationStep } from './refactor-types.js';
 export { applyRefactorOperation } from './refactor-operations.js';
+export { applyReorganizationMove, type ReorganizationMoveResult } from './reorganization.js';
 export { executeRefactorPlan } from './refactor-executor.js';
 export { readCheckpointJournal } from './refactor-checkpoints.js';
 export { buildArchitecturalRefactorPlan } from './refactor-planner.js';
