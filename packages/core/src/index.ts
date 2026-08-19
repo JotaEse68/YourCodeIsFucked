@@ -25,7 +25,7 @@ import type { AiResidueCleanupReport, AuditReport, CleanupReport, DuplicateGroup
 export type { AiResidueCleanupReport, AuditReport, AutoIgnoredDirectory, CleanupReport, DependencyAuditReport, DependencyVulnerability, DuplicateGroup, Finding, FindingRisk, GitCheckpoint, GitState, ImpactReport, RefactorPlan, RefactorRecommendation, ReleaseCheck, ReleaseReport, Stack, UnderstandReport, UnfuckReport, VerificationCheck, VerificationReport, YcfConfig } from './types.js';
 export { defaultConfig, detectVendoredSdkDirs, loadConfig } from './config.js';
 export { createCheckpoint, findGitRoot, latestCheckpoint, rollbackToCheckpoint } from './git.js';
-export { verificationPlan, verify } from './verify.js';
+export { verificationPlan, verify, verifyFast } from './verify.js';
 export { writeUnfuckReport } from './reporters.js';
 export { writeReleaseReport } from './reporters.js';
 export { dependencyAudit, dependencyAuditPlan, parseDependencyAudit } from './dependencies.js';
