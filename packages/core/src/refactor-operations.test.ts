@@ -62,3 +62,39 @@ describe('EXTRACT relatedTestFiles', () => {
     expect(result.relatedTestFiles).toContain('src/math.test.ts');
   });
 });
+
+describe('public-contract protection beyond CONSOLIDATE', () => {
+  it('blocks MOVE of a file that is package.json main', () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-contract-'));
+    const write = (file: string, content: string) => { mkdirSync(join(target, file, '..'), { recursive: true }); writeFileSync(join(target, file), content, 'utf8'); };
+    write('package.json', JSON.stringify({ name: 'fixture', main: './src/index.js' }));
+    write('src/index.js', 'module.exports = {};\n');
+    expect(() => applyRefactorOperation(target, { id: 'op-1', kind: 'MOVE', description: 'move', source: 'src/index.js', destination: 'src/lib/index.js', updateImports: true })).toThrow(/BLOCKED/);
+  });
+
+  it('blocks RENAME of a barrel-re-exported file', () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-contract-'));
+    const write = (file: string, content: string) => { mkdirSync(join(target, file, '..'), { recursive: true }); writeFileSync(join(target, file), content, 'utf8'); };
+    write('src/util.ts', 'export const helper = () => 1;\n');
+    write('src/index.ts', "export * from './util.js';\n");
+    expect(() => applyRefactorOperation(target, { id: 'op-1', kind: 'RENAME', description: 'rename', source: 'src/util.ts', destination: 'src/helper.ts', updateImports: true })).toThrow(/BLOCKED/);
+  });
+
+  it('blocks EXTRACT from a file that is package.json module', () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-contract-'));
+    const write = (file: string, content: string) => { mkdirSync(join(target, file, '..'), { recursive: true }); writeFileSync(join(target, file), content, 'utf8'); };
+    write('package.json', JSON.stringify({ name: 'fixture', module: './src/entry.mjs' }));
+    write('src/entry.mjs', 'export function add(a, b) {\n  return a + b;\n}\n');
+    expect(() => applyRefactorOperation(target, { id: 'op-1', kind: 'EXTRACT', description: 'extract', sourceFile: 'src/entry.mjs', targetFile: 'src/add.mjs', range: { startLine: 1, endLine: 3 }, exportedNames: ['add'] })).toThrow(/BLOCKED/);
+  });
+
+  it('still allows MOVE of an ordinary, non-public, non-re-exported file', () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-contract-'));
+    const write = (file: string, content: string) => { mkdirSync(join(target, file, '..'), { recursive: true }); writeFileSync(join(target, file), content, 'utf8'); };
+    write('package.json', JSON.stringify({ name: 'fixture', main: './src/index.js' }));
+    write('src/index.js', 'module.exports = {};\n');
+    write('src/util.js', 'module.exports.helper = () => 1;\n');
+    const result = applyRefactorOperation(target, { id: 'op-1', kind: 'MOVE', description: 'move', source: 'src/util.js', destination: 'src/lib/util.js', updateImports: true });
+    expect(result.changedFiles).toContain('src/util.js');
+  });
+});

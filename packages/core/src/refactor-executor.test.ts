@@ -111,12 +111,12 @@ describe('architectural refactor executor', () => {
       expect(result.keptBlocks).toEqual(['RF-ALIAS']); expect(readFileSync(join(root, 'src/app.ts'), 'utf8')).toContain("from './lib/math'");
     });
 
-    it('rewrites export-from and export-star specifiers', () => {
+    it('blocks moving a module that is barrel re-exported via export-from/export-star, protecting the public contract', () => {
       const root = mkdtempSync(join(tmpdir(), 'ycf-export-from-')); const write = (file: string, content: string) => { const path = join(root, file); mkdirSync(path.slice(0, path.lastIndexOf('\\')), { recursive: true }); writeFileSync(path, content); };
       write('src/utils/math.ts', 'export const add = (a: number, b: number) => a + b;\n'); write('src/index.ts', "export { add } from './utils/math';\nexport * from './utils/math';\n");
       const plan: ArchitecturalRefactorPlan = { version: 2, target: root, generatedAt: new Date().toISOString(), sourceFindings: [], summary: { auto: 1, safeRefactor: 1, supervised: 0, architectural: 0, blocked: 0 }, blocks: [block('RF-EXPORT-FROM', [{ id: 'op-move', kind: 'MOVE', description: 'move re-exported module', source: 'src/utils/math.ts', destination: 'src/lib/math.ts', updateImports: true }])] };
       const result = executeRefactorPlan(root, plan, { createGitCheckpoint: false });
-      expect(result.keptBlocks).toEqual(['RF-EXPORT-FROM']); const index = readFileSync(join(root, 'src/index.ts'), 'utf8'); expect(index).toContain("export { add } from './lib/math'"); expect(index).toContain("export * from './lib/math'");
+      expect(result.rolledBackBlocks).toEqual(['RF-EXPORT-FROM']); expect(result.blocks[0].result?.error).toMatch(/^BLOCKED:/); const index = readFileSync(join(root, 'src/index.ts'), 'utf8'); expect(index).toContain("export { add } from './utils/math'"); expect(index).toContain("export * from './utils/math'");
     });
 
     it('rewrites require() and static import() specifiers', () => {
