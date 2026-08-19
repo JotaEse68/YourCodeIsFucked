@@ -549,6 +549,7 @@ program.command('unfuck [target]').description('Run YCF’s safe pipeline with g
       steps[4].status = 'completed';
       const paths = writeUnfuckReport(target, { target: before.target, startedAt, completedAt: new Date().toISOString(), status: 'rolled-back', executionMode, steps, before, after, checkpoint, cleanup, verification });
       console.error(`Verification failed; restored ${checkpoint.commit}. Report: ${paths.markdownPath}`);
+      printFailedChecks(verification);
       process.exitCode = 1;
       return;
     }
