@@ -55,10 +55,14 @@ function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
   });
 }
 
-// Local re-check server for the Cockpit. Binds to 127.0.0.1 only (never reachable from
-// another machine) and requires an exact per-session token on every request via the
-// x-ycf-token header. Most endpoints are read-only plan endpoints; /apply/move is the
-// first write endpoint, and it only ever applies one already-planned reorganization move.
+// Local re-check-and-apply server for the Cockpit. Binds to 127.0.0.1 only (never
+// reachable from another machine) and requires an exact per-session token on every
+// request via the x-ycf-token header. Most endpoints are read-only plan endpoints.
+// The write endpoints -- /apply/move, /undo/move, /keep/move, /finalize, and
+// /finalize/publish -- never invent a move: every one of them only ever executes a
+// move that already exists, verbatim, in .ycf/reorganization-plan.json, written by an
+// AI agent after the user approved it in chat. See
+// docs/superpowers/specs/2026-08-19-ai-residue-and-cockpit-reorg-design.md.
 export function startCockpitServer(target: string, port: number, onError?: (error: Error) => void): { url: string; token: string; close: () => void } {
   const token = randomBytes(16).toString('hex');
   // Per-server-instance only, by design -- see docs/superpowers/specs/2026-08-19-ai-residue-and-cockpit-reorg-design.md.
@@ -149,6 +153,27 @@ export function startCockpitServer(target: string, port: number, onError?: (erro
       const summary = { appliedBlockIds: [...appliedMoves.keys()], keptBlockIds: [...keptMoves], beforeScore: baseline?.score ?? afterScore, afterScore, architecture: diff };
       const paths = writeReorganizationReport(target, summary);
       res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ...summary, reportPath: paths.markdownPath })); return;
+    }
+    if (req.method === 'POST' && url.pathname === '/finalize/publish') {
+      let body: Record<string, unknown>;
+      try { body = await readJsonBody(req); }
+      catch { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'invalid request body' })); return; }
+      const push = body.push === true;
+      const changedFiles = [...new Set([...appliedMoves.values()].flatMap((entry) => entry.changedFiles))];
+      if (!changedFiles.length) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'nothing applied this session to commit' })); return; }
+      try {
+        for (const file of changedFiles) execFileSync('git', ['-C', target, 'add', '--', file], { stdio: 'ignore' });
+        execFileSync('git', ['-C', target, 'commit', '-m', 'YCF: apply approved reorganization plan'], { stdio: 'ignore' });
+      } catch (error) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: `commit failed: ${error instanceof Error ? error.message : String(error)}` })); return; }
+      if (!push) { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ status: 'committed' })); return; }
+      try {
+        execFileSync('git', ['-C', target, 'push'], { stdio: 'ignore' });
+        res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ status: 'pushed' }));
+      } catch (error) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'committed', pushError: `Committed locally, but push failed (no remote/upstream configured, or authentication is required): ${error instanceof Error ? error.message : String(error)}` }));
+      }
+      return;
     }
     res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'not found' }));
   });

@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -6,6 +7,14 @@ import { startCockpitServer } from './cockpit.js';
 
 let server: ReturnType<typeof startCockpitServer> | undefined;
 afterEach(() => { server?.close(); server = undefined; });
+
+function initGitRepo(target: string) {
+  execFileSync('git', ['-C', target, 'init', '-q']);
+  execFileSync('git', ['-C', target, 'config', 'user.email', 'test@example.com']);
+  execFileSync('git', ['-C', target, 'config', 'user.name', 'Test']);
+  execFileSync('git', ['-C', target, 'add', '-A']);
+  execFileSync('git', ['-C', target, 'commit', '-q', '-m', 'init']);
+}
 
 function writeReorgPlan(target: string) {
   mkdirSync(join(target, '.ycf'), { recursive: true });
@@ -130,5 +139,38 @@ describe('Cockpit reorganization endpoints', () => {
     expect(body.architecture.removedModules).toEqual([]);
     expect(body.architecture.addedEdges).toBe(0);
     expect(body.architecture.removedEdges).toBe(0);
+  });
+
+  it('finalize/publish commits only this session\'s changed files, without push', async () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-cockpit-'));
+    writeReorgPlan(target);
+    writeFileSync(join(target, 'unrelated.txt'), 'pre-existing uncommitted work');
+    initGitRepo(target);
+    writeFileSync(join(target, 'unrelated.txt'), 'still uncommitted after init');
+    server = startCockpitServer(target, 4400);
+    const headers = { 'x-ycf-token': server.token, 'Content-Type': 'application/json' };
+    await fetch(`${server.url}/apply/move`, { method: 'POST', headers, body: JSON.stringify({ blockId: 'RF-MOVE-001' }) });
+    const response = await fetch(`${server.url}/finalize/publish`, { method: 'POST', headers, body: JSON.stringify({ push: false }) });
+    expect(response.status).toBe(200);
+    const body = await response.json() as { status: string };
+    expect(body.status).toBe('committed');
+    const status = execFileSync('git', ['-C', target, 'status', '--porcelain'], { encoding: 'utf8' });
+    expect(status).toContain('unrelated.txt');
+    const log = execFileSync('git', ['-C', target, 'log', '-1', '--name-only'], { encoding: 'utf8' });
+    expect(log).not.toContain('unrelated.txt');
+  });
+
+  it('finalize/publish with push reports a clear error when there is no remote', async () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-cockpit-'));
+    writeReorgPlan(target);
+    initGitRepo(target);
+    server = startCockpitServer(target, 4401);
+    const headers = { 'x-ycf-token': server.token, 'Content-Type': 'application/json' };
+    await fetch(`${server.url}/apply/move`, { method: 'POST', headers, body: JSON.stringify({ blockId: 'RF-MOVE-001' }) });
+    const response = await fetch(`${server.url}/finalize/publish`, { method: 'POST', headers, body: JSON.stringify({ push: true }) });
+    expect(response.status).toBe(200);
+    const body = await response.json() as { status: string; pushError?: string };
+    expect(body.status).toBe('committed');
+    expect(body.pushError).toMatch(/push failed/);
   });
 });
