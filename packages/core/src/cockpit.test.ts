@@ -53,4 +53,21 @@ describe('Cockpit reorganization endpoints', () => {
     const response = await fetch(`${server.url}/apply/move`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ blockId: 'RF-MOVE-001' }) });
     expect(response.status).toBe(403);
   });
+
+  it('returns 400 on malformed JSON body instead of crashing the server', async () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-cockpit-'));
+    writeReorgPlan(target);
+    server = startCockpitServer(target, 4394);
+    const headers = { 'x-ycf-token': server.token, 'Content-Type': 'application/json' };
+    const malformedResponse = await fetch(`${server.url}/apply/move`, { method: 'POST', headers, body: 'not valid json{' });
+    expect(malformedResponse.status).toBe(400);
+    const malformedBody = await malformedResponse.json() as { error: string };
+    expect(malformedBody.error).toBeTruthy();
+    // The process (and this server) must have survived the malformed request -- a
+    // subsequent, valid request on the same server should still succeed.
+    const followUpResponse = await fetch(`${server.url}/apply/move`, { method: 'POST', headers, body: JSON.stringify({ blockId: 'RF-MOVE-001' }) });
+    expect(followUpResponse.status).toBe(200);
+    const followUpBody = await followUpResponse.json() as { status: string };
+    expect(followUpBody.status).toBe('applied');
+  });
 });

@@ -39,6 +39,12 @@ function readReorganizationPlan(target: string): ArchitecturalRefactorPlan | und
   try { return JSON.parse(readFileSync(path, 'utf8')) as ArchitecturalRefactorPlan; } catch { return undefined; }
 }
 
+// Rejects on malformed JSON in the body and on a client `req` 'error' event (e.g. the
+// browser navigating away mid-POST). EVERY caller MUST wrap `await readJsonBody(req)` in
+// its own try/catch and respond 400 with a JSON error body on failure, then `return` --
+// an uncaught rejection here becomes an unhandled promise rejection on the Node process,
+// which crashes the whole server under Node's default behavior. Do not `await` this
+// directly inside a route handler without a surrounding try/catch.
 function readJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
   return new Promise((resolvePromise, rejectPromise) => {
     let data = '';
@@ -95,7 +101,9 @@ export function startCockpitServer(target: string, port: number, onError?: (erro
       return;
     }
     if (req.method === 'POST' && url.pathname === '/apply/move') {
-      const body = await readJsonBody(req);
+      let body: Record<string, unknown>;
+      try { body = await readJsonBody(req); }
+      catch { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'invalid request body' })); return; }
       const blockId = String(body.blockId ?? '');
       const plan = readReorganizationPlan(target);
       const block = plan?.blocks.find((candidate) => candidate.id === blockId);
