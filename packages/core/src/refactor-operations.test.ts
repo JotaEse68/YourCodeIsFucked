@@ -98,3 +98,40 @@ describe('public-contract protection beyond CONSOLIDATE', () => {
     expect(result.changedFiles).toContain('src/util.js');
   });
 });
+
+describe('safety engine on every operation kind', () => {
+  it('blocks CREATE inside a sensitive-zone path', () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-safety-'));
+    mkdirSync(join(target, 'src'), { recursive: true });
+    expect(() => applyRefactorOperation(target, { id: 'op-1', kind: 'CREATE', description: 'create', file: 'src/auth/session.ts', content: 'export const x = 1;\n' })).toThrow(/BLOCK|SUPERVISED/);
+  });
+
+  it('blocks DELETE of a sensitive-zone file', () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-safety-'));
+    const write = (file: string, content: string) => { mkdirSync(join(target, file, '..'), { recursive: true }); writeFileSync(join(target, file), content, 'utf8'); };
+    write('src/billing/stripe.ts', 'export const charge = () => {};\n');
+    expect(() => applyRefactorOperation(target, { id: 'op-1', kind: 'DELETE', description: 'delete', file: 'src/billing/stripe.ts' })).toThrow(/BLOCK|SUPERVISED/);
+  });
+
+  it('blocks EDIT_IMPORT on a sensitive-zone file', () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-safety-'));
+    const write = (file: string, content: string) => { mkdirSync(join(target, file, '..'), { recursive: true }); writeFileSync(join(target, file), content, 'utf8'); };
+    write('src/auth/session.ts', "import { hash } from './old-hash.js';\n");
+    expect(() => applyRefactorOperation(target, { id: 'op-1', kind: 'EDIT_IMPORT', description: 'edit', file: 'src/auth/session.ts', replacements: [{ from: './old-hash.js', to: './new-hash.js' }] })).toThrow(/BLOCK|SUPERVISED/);
+  });
+
+  it('still allows CREATE/DELETE/EDIT_IMPORT on an ordinary file', () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-safety-'));
+    const write = (file: string, content: string) => { mkdirSync(join(target, file, '..'), { recursive: true }); writeFileSync(join(target, file), content, 'utf8'); };
+    write('src/format.ts', "import { round } from './math.js';\nexport const x = round(1);\n");
+    const result = applyRefactorOperation(target, { id: 'op-1', kind: 'EDIT_IMPORT', description: 'edit', file: 'src/format.ts', replacements: [{ from: './math.js', to: './lib/math.js' }] });
+    expect(result.changedFiles).toContain('src/format.ts');
+  });
+
+  it('blocks EXTRACT from a sensitive-zone file', () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-safety-'));
+    const write = (file: string, content: string) => { mkdirSync(join(target, file, '..'), { recursive: true }); writeFileSync(join(target, file), content, 'utf8'); };
+    write('src/auth/permissions.ts', 'export function checkRole(role) {\n  return role === "admin";\n}\n');
+    expect(() => applyRefactorOperation(target, { id: 'op-1', kind: 'EXTRACT', description: 'extract', sourceFile: 'src/auth/permissions.ts', targetFile: 'src/auth/role-check.ts', range: { startLine: 1, endLine: 3 }, exportedNames: ['checkRole'] })).toThrow(/BLOCK|SUPERVISED/);
+  });
+});
