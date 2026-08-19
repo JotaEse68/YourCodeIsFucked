@@ -95,4 +95,17 @@ describe('Cockpit reorganization endpoints', () => {
     expect(undoResponse.status).toBe(404);
     expect(existsSync(join(target, 'features/greeting.ts'))).toBe(true);
   });
+
+  it('finalize reports a before/after score and architecture diff', async () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-cockpit-'));
+    writeReorgPlan(target);
+    server = startCockpitServer(target, 4398);
+    const headers = { 'x-ycf-token': server.token, 'Content-Type': 'application/json' };
+    await fetch(`${server.url}/apply/move`, { method: 'POST', headers, body: JSON.stringify({ blockId: 'RF-MOVE-001' }) });
+    const response = await fetch(`${server.url}/finalize`, { method: 'POST', headers, body: '{}' });
+    expect(response.status).toBe(200);
+    const body = await response.json() as { appliedBlockIds: string[]; reportPath: string };
+    expect(body.appliedBlockIds).toEqual(['RF-MOVE-001']);
+    expect(existsSync(body.reportPath)).toBe(true);
+  });
 });

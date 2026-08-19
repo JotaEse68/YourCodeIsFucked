@@ -79,6 +79,19 @@ export function writeRefactorExecutionReport(target: string, report: RefactorExe
   return { jsonPath, markdownPath };
 }
 
+export interface ReorganizationSummary { appliedBlockIds: string[]; keptBlockIds: string[]; beforeScore: number; afterScore: number; architecture: ReturnType<typeof architectureDiff>; }
+
+export function writeReorganizationReport(target: string, summary: ReorganizationSummary): { jsonPath: string; markdownPath: string } {
+  const output = join(resolve(target), '.ycf');
+  mkdirSync(output, { recursive: true });
+  const jsonPath = join(output, 'reorganization-report.json');
+  const markdownPath = join(output, 'reorganization-report.md');
+  writeFileSync(jsonPath, JSON.stringify(summary, null, 2), 'utf8');
+  const diff = summary.architecture;
+  writeFileSync(markdownPath, `# YCF reorganization report\n\nFUCKED SCORE: ${summary.beforeScore}% -> ${summary.afterScore}%\n\nApplied: ${summary.appliedBlockIds.join(', ') || 'none'}\nKept: ${summary.keptBlockIds.join(', ') || 'none'}\n\n## Architecture\n\n- Modules added: ${diff.addedModules.map((file) => `\`${file}\``).join(', ') || 'none'}\n- Modules removed: ${diff.removedModules.map((file) => `\`${file}\``).join(', ') || 'none'}\n- Import edges added: ${diff.addedEdges}\n- Import edges removed: ${diff.removedEdges}\n- Dependency cycles before: ${diff.cyclesBefore}\n- Dependency cycles after: ${diff.cyclesAfter}\n`, 'utf8');
+  return { jsonPath, markdownPath };
+}
+
 export function writeDependencyAuditReport(target: string, report: DependencyAuditReport): { jsonPath: string; markdownPath: string } {
   const output = join(resolve(target), '.ycf');
   mkdirSync(output, { recursive: true });

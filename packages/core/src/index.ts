@@ -19,7 +19,7 @@ export { applyReorganizationMove, type ReorganizationMoveResult } from './reorga
 export { executeRefactorPlan } from './refactor-executor.js';
 export { readCheckpointJournal } from './refactor-checkpoints.js';
 export { buildArchitecturalRefactorPlan } from './refactor-planner.js';
-export { writeRefactorExecutionReport, architectureDiff } from './reporters.js';
+export { writeRefactorExecutionReport, architectureDiff, writeReorganizationReport } from './reporters.js';
 export { cockpitActionsHtml, cockpitHtml, menuHtml, openBrowser, releaseReadinessHtml, startCockpitServer } from './cockpit.js';
 export { demoRefactorBlock } from './refactor-block-fixture.js';
 import type { AiResidueCleanupReport, AuditReport, CleanupReport, DuplicateGroup, Finding, ImpactReport, RefactorPlan, Stack, UnderstandReport, YcfConfig } from './types.js';

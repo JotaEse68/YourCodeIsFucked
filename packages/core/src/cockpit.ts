@@ -8,6 +8,7 @@ import { audit, refactorPlan, releaseReadiness, understand } from './index.js';
 import { verificationPlan } from './verify.js';
 import { buildArchitecturalRefactorPlan } from './refactor-planner.js';
 import { applyReorganizationMove } from './reorganization.js';
+import { architectureDiff, writeReorganizationReport } from './reporters.js';
 import type { ArchitecturalRefactorPlan } from './refactor-types.js';
 
 export function openBrowser(file: string): boolean {
@@ -66,6 +67,7 @@ export function startCockpitServer(target: string, port: number, onError?: (erro
   // recoverable with plain git like any other YCF change.
   const appliedMoves = new Map<string, Extract<ReturnType<typeof applyReorganizationMove>, { status: 'applied' }>>();
   const keptMoves = new Set<string>();
+  let baseline: { score: number; architecture: ReturnType<typeof understand>['graph'] } | undefined;
   const server = createServer(async (req, res) => {
     // The cockpit HTML is opened via file:// (or occasionally served on a different
     // port), so the browser treats every request here as cross-origin and preflights
@@ -110,6 +112,7 @@ export function startCockpitServer(target: string, port: number, onError?: (erro
       const block = plan?.blocks.find((candidate) => candidate.id === blockId);
       if (!block) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'unknown blockId' })); return; }
       if (appliedMoves.has(blockId)) { res.writeHead(409, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'already applied this session' })); return; }
+      if (!baseline) baseline = { score: audit(target).score.fucked, architecture: understand(target).graph };
       const result = applyReorganizationMove(target, block);
       if (result.status === 'rolled_back') { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ status: 'rolled_back', error: result.error })); return; }
       appliedMoves.set(blockId, result);
@@ -136,6 +139,16 @@ export function startCockpitServer(target: string, port: number, onError?: (erro
       if (!appliedMoves.has(blockId)) { res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'no applied move with that blockId in this session' })); return; }
       keptMoves.add(blockId);
       res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ status: 'kept' })); return;
+    }
+    if (req.method === 'POST' && url.pathname === '/finalize') {
+      try { await readJsonBody(req); }
+      catch { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'invalid request body' })); return; }
+      const afterArchitecture = understand(target).graph;
+      const afterScore = audit(target).score.fucked;
+      const diff = architectureDiff(baseline?.architecture, afterArchitecture);
+      const summary = { appliedBlockIds: [...appliedMoves.keys()], keptBlockIds: [...keptMoves], beforeScore: baseline?.score ?? afterScore, afterScore, architecture: diff };
+      const paths = writeReorganizationReport(target, summary);
+      res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ ...summary, reportPath: paths.markdownPath })); return;
     }
     res.writeHead(404, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'not found' }));
   });
