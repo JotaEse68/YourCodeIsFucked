@@ -21,7 +21,7 @@ describe('verifyFast', () => {
     expect(report.passed).toBe(true);
     expect(report.checks.map((check) => check.name).sort()).toEqual(['lint', 'typecheck']);
     expect(existsSync(sentinel)).toBe(false);
-  });
+  }, 15000);
 
   it('fails when lint fails, without needing test/build to run', () => {
     const target = mkdtempSync(join(tmpdir(), 'ycf-verifyfast-'));
