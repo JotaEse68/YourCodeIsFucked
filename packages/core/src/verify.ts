@@ -10,7 +10,7 @@ const sourceExtensions = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', 
 // exclusion of bundled third-party SDKs, matching index.ts's audit() -- otherwise the
 // security check (which can now gate a command's success) can be dominated by directories
 // the user explicitly asked YCF to ignore, or vendored code they have no ability to fix.
-function walkSourceFiles(target: string): string[] {
+export function walkSourceFiles(target: string): string[] {
   const ignoredDirs = effectiveIgnoredDirectories(target, loadConfig(target));
   const out: string[] = [];
   const visit = (directory: string): void => {

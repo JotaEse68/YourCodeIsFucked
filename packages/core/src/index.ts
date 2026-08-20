@@ -20,6 +20,8 @@ export { executeRefactorPlan } from './refactor-executor.js';
 export { readCheckpointJournal } from './refactor-checkpoints.js';
 export { recover, restoreBlock } from './recover.js';
 export type { RecoverReport, RestoreResult } from './recover.js';
+export { next } from './next.js';
+export type { NextReport } from './next.js';
 export { buildArchitecturalRefactorPlan } from './refactor-planner.js';
 export { writeRefactorExecutionReport, architectureDiff, writeReorganizationReport } from './reporters.js';
 export { cockpitActionsHtml, cockpitHtml, menuHtml, openBrowser, releaseReadinessHtml, startCockpitServer } from './cockpit.js';
@@ -32,7 +34,7 @@ export type { AiResidueCleanupReport, AuditReport, AutoIgnoredDirectory, Cleanup
 export { SECURITY_RELEVANT_RULE_IDS } from './types.js';
 export { defaultConfig, detectVendoredSdkDirs, loadConfig } from './config.js';
 export { createCheckpoint, findGitRoot, latestCheckpoint, rollbackToCheckpoint } from './git.js';
-export { verificationPlan, verify, verifyFast } from './verify.js';
+export { verificationPlan, verify, verifyFast, walkSourceFiles } from './verify.js';
 export { writeUnfuckReport } from './reporters.js';
 export { writeReleaseReport } from './reporters.js';
 export { dependencyAudit, dependencyAuditPlan, parseDependencyAudit } from './dependencies.js';

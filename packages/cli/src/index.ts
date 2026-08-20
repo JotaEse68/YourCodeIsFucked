@@ -6,7 +6,7 @@ import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
-import { aiResidueFindings, audit, buildArchitecturalRefactorPlan, cleanupAiResidueMarkers, cleanupDevArtifacts, cockpitActionsHtml, cockpitHtml, createCheckpoint, dependencyAudit, dependencyAuditPlan, executeRefactorPlan, impactAnalysis, latestCheckpoint, loadConfig, openBrowser, recover, refactorPlan, releaseCheckLabel, releaseHeading, releaseReadiness, releaseReportLabel, restoreBlock, rollbackToCheckpoint, startCockpitServer, understand, verificationPlan, verify, writeAuditReport, writeDependencyAuditReport, writeReleaseReport, writeRefactorExecutionReport, writeUnfuckReport } from '@jotaese68/core';
+import { aiResidueFindings, audit, buildArchitecturalRefactorPlan, cleanupAiResidueMarkers, cleanupDevArtifacts, cockpitActionsHtml, cockpitHtml, confidenceTier, createCheckpoint, dependencyAudit, dependencyAuditPlan, executeRefactorPlan, impactAnalysis, latestCheckpoint, loadConfig, next, openBrowser, recover, refactorPlan, releaseCheckLabel, releaseHeading, releaseReadiness, releaseReportLabel, restoreBlock, rollbackToCheckpoint, startCockpitServer, understand, verificationPlan, verify, writeAuditReport, writeDependencyAuditReport, writeReleaseReport, writeRefactorExecutionReport, writeUnfuckReport } from '@jotaese68/core';
 
 // pnpm forwards a standalone `--` to package scripts on some platforms.
 if (process.argv[2] === '--') process.argv.splice(2, 1);
@@ -704,6 +704,22 @@ program.command('recover [target]').description('Show or restore interrupted ref
   }
   const unresolved = report.journal.blocks.filter((block) => block.status === 'PENDING' || block.status === 'RUNNING');
   if (unresolved.length) console.log(`${unresolved.length} block(s) did not reach a final state. Restore one with: ycf recover ${target} --restore <blockId> --yes`);
+});
+
+program.command('next [target]').description('Show the single most useful next action: resume an interrupted run, or the most confidently actionable finding.').option('--json', 'Emit the complete result as JSON.').option('--language <language>', 'Response language: en, es, pt, fr, de, it, ar, or zh.').option('--audience <audience>', 'Explanation level: guided, technical, or professional.').action((target = '.', options) => {
+  const report = next(target);
+  if (options.json) { console.log(JSON.stringify(report, null, 2)); return; }
+  console.log('YCF — next');
+  if (report.blocked) {
+    console.log(`Unfinished refactor run detected (block(s): ${report.blocked.pendingBlockIds.join(', ')}).`);
+    console.log(`Run \`ycf recover ${target}\` first.`);
+    return;
+  }
+  if (!report.suggestions.length) { console.log('No findings to act on.'); return; }
+  const config = loadConfig(target);
+  const language: Language = validLanguage(options.language) ? options.language : config.language;
+  const audience = validAudience(options.audience) ? options.audience : config.audience;
+  for (const finding of report.suggestions) console.log(`[${confidenceTier(finding.confidence ?? 0)}] [${finding.severity}] ${finding.file}:${finding.lines.join(', ')} — ${guidedAdvice(finding, language, audience)}`);
 });
 
 program.parse();
