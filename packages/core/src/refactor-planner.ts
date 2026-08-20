@@ -2,19 +2,24 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { audit, understand } from './index.js';
 import { buildRefactorPlan } from './planner.js';
+import { computeConfidence, confidenceTier, type EvidenceItem } from './confidence.js';
 import type { ArchitecturalRefactorPlan, RefactorBlock } from './refactor-types.js';
 import type { RefactorRecommendation } from './types.js';
 
 /** Build an executable architectural plan from static evidence. Explicit blocks can be supplied by a UI/agent after review. */
 export function buildArchitecturalRefactorPlan(target: string, explicitBlocks: RefactorBlock[] = []): ArchitecturalRefactorPlan {
   const root = resolve(target); const understanding = understand(root); const auditReport = audit(root); const findings = auditReport.findings;
-  const duplicateBlocks = understanding.duplicates.map((group, index): RefactorBlock => ({
-    id: `RF-DUP-${String(index + 1).padStart(3, '0')}`, type: group.kind === 'exact' ? 'CONSOLIDATE_DUPLICATE' : 'SIMILAR_DUPLICATE_REVIEW',
-    goal: group.kind === 'exact' ? 'Consolidate exact duplicate logic.' : 'Review structurally similar logic.', reason: 'Static duplicate evidence requires responsibility and API review before changing behavior.', risk: 'HIGH', confidence: group.kind === 'exact' ? 94 : 62, mode: 'SUPERVISED',
-    files: group.occurrences.map((occurrence) => occurrence.file), dependencies: [], affectedModules: group.occurrences.map((occurrence) => occurrence.file), preconditions: ['Confirm canonical owner and public API.'],
-    operations: [{ id: `op-${index + 1}`, kind: group.kind === 'exact' ? 'CONSOLIDATE' : 'EXTRACT', description: 'Review duplicate candidate before execution.', ...(group.kind === 'exact' ? { canonicalFile: group.occurrences[0]?.file ?? '', duplicateFile: group.occurrences[1]?.file ?? '', symbol: 'unknown' } : { sourceFile: group.occurrences[0]?.file ?? '', targetFile: '', range: { startLine: group.occurrences[0]?.startLine ?? 1, endLine: group.occurrences[0]?.endLine ?? 1 }, exportedNames: [] }) } as never],
-    validation: [], rollback: [{ id: `undo-${index + 1}`, kind: 'undo-operation', description: 'Undo the block operation journal.' }], status: 'PLANNED'
-  }));
+  const duplicateBlocks = understanding.duplicates.map((group, index): RefactorBlock => {
+    const evidence: EvidenceItem[] = group.occurrences.map((occurrence) => ({ file: occurrence.file, lines: [occurrence.startLine, occurrence.endLine], detail: 'duplicate occurrence' }));
+    const confidence = computeConfidence(group.kind === 'exact' ? 90 : 55, evidence);
+    return {
+      id: `RF-DUP-${String(index + 1).padStart(3, '0')}`, type: group.kind === 'exact' ? 'CONSOLIDATE_DUPLICATE' : 'SIMILAR_DUPLICATE_REVIEW',
+      goal: group.kind === 'exact' ? 'Consolidate exact duplicate logic.' : 'Review structurally similar logic.', reason: 'Static duplicate evidence requires responsibility and API review before changing behavior.', risk: 'HIGH', confidence, evidence, confidenceTier: confidenceTier(confidence), mode: 'SUPERVISED',
+      files: group.occurrences.map((occurrence) => occurrence.file), dependencies: [], affectedModules: group.occurrences.map((occurrence) => occurrence.file), preconditions: ['Confirm canonical owner and public API.'],
+      operations: [{ id: `op-${index + 1}`, kind: group.kind === 'exact' ? 'CONSOLIDATE' : 'EXTRACT', description: 'Review duplicate candidate before execution.', ...(group.kind === 'exact' ? { canonicalFile: group.occurrences[0]?.file ?? '', duplicateFile: group.occurrences[1]?.file ?? '', symbol: 'unknown' } : { sourceFile: group.occurrences[0]?.file ?? '', targetFile: '', range: { startLine: group.occurrences[0]?.startLine ?? 1, endLine: group.occurrences[0]?.endLine ?? 1 }, exportedNames: [] }) } as never],
+      validation: [], rollback: [{ id: `undo-${index + 1}`, kind: 'undo-operation', description: 'Undo the block operation journal.' }], status: 'PLANNED'
+    };
+  });
   const guidancePlan = buildRefactorPlan(auditReport, understanding);
   const reviewBlocks: RefactorBlock[] = guidancePlan.recommendations
     .filter((recommendation) => !recommendation.id.startsWith('refactor:duplicate-code:') && !recommendation.id.startsWith('refactor:similar-duplicate-code:'))
@@ -26,9 +31,11 @@ export function buildArchitecturalRefactorPlan(target: string, explicitBlocks: R
 }
 
 function reviewBlockFrom(recommendation: RefactorRecommendation, index: number): RefactorBlock {
+  const evidence: EvidenceItem[] = [{ file: recommendation.file, lines: recommendation.lines, detail: recommendation.why }];
+  const confidence = computeConfidence(70, evidence);
   return {
     id: `RF-REVIEW-${String(index + 1).padStart(3, '0')}`, type: 'SUPERVISED_REVIEW', goal: recommendation.title, reason: recommendation.why,
-    risk: recommendation.risk === 'architectural' ? 'HIGH' : 'MEDIUM', confidence: 70, mode: 'SUPERVISED',
+    risk: recommendation.risk === 'architectural' ? 'HIGH' : 'MEDIUM', confidence, evidence, confidenceTier: confidenceTier(confidence), uncertaintyState: 'NEEDS_HUMAN', mode: 'SUPERVISED',
     files: [recommendation.file], dependencies: [], affectedModules: recommendation.affectedModules, preconditions: recommendation.stopIf,
     operations: [], validation: [], rollback: [], status: 'PLANNED'
   };

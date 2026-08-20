@@ -1,5 +1,6 @@
 import { basename } from 'node:path';
 import type { RiskLevel, SafetyMode } from './refactor-types.js';
+import { computeConfidence, type EvidenceItem } from './confidence.js';
 
 // Patterns whose match means the file connects to something outside this repo's
 // control (a payment/auth provider, a webhook caller, a database) -- see
@@ -32,11 +33,16 @@ const blockedPatterns: Array<[RegExp, string]> = [
   [unsafeRuntimeCodePattern, 'runtime-generated code']
 ];
 
-export interface SafetyAssessment { risk: RiskLevel; mode: SafetyMode; confidence: number; signals: string[]; reason: string; }
+export interface SafetyAssessment { risk: RiskLevel; mode: SafetyMode; confidence: number; evidence: EvidenceItem[]; signals: string[]; reason: string; }
 export function assessRefactorSafety(files: string[], contents: Map<string, string>): SafetyAssessment {
   const supervised = new Set<string>(); const blocked = new Set<string>();
-  for (const file of files) { const text = `${basename(file)} ${file}\n${contents.get(file) ?? ''}`; for (const [pattern, label] of supervisedPatterns) if (pattern.test(text)) supervised.add(label); for (const [pattern, label] of blockedPatterns) if (pattern.test(text)) blocked.add(label); }
-  if (blocked.size) return { risk: 'CRITICAL', mode: 'BLOCKED', confidence: 98, signals: [...blocked], reason: `Cannot resolve safely: ${[...blocked].join(', ')}.` };
-  if (supervised.size) return { risk: 'HIGH', mode: 'SUPERVISED', confidence: 86, signals: [...supervised], reason: `Protected area detected: ${[...supervised].join(', ')}.` };
-  return { risk: 'LOW', mode: 'SAFE', confidence: 96, signals: [], reason: 'No protected dynamic or high-impact area detected statically.' };
+  const supervisedEvidence: EvidenceItem[] = []; const blockedEvidence: EvidenceItem[] = [];
+  for (const file of files) {
+    const text = `${basename(file)} ${file}\n${contents.get(file) ?? ''}`;
+    for (const [pattern, label] of supervisedPatterns) if (pattern.test(text)) { supervised.add(label); supervisedEvidence.push({ file, detail: label }); }
+    for (const [pattern, label] of blockedPatterns) if (pattern.test(text)) { blocked.add(label); blockedEvidence.push({ file, detail: label }); }
+  }
+  if (blocked.size) return { risk: 'CRITICAL', mode: 'BLOCKED', confidence: computeConfidence(98, blockedEvidence), evidence: blockedEvidence, signals: [...blocked], reason: `Cannot resolve safely: ${[...blocked].join(', ')}.` };
+  if (supervised.size) return { risk: 'HIGH', mode: 'SUPERVISED', confidence: computeConfidence(86, supervisedEvidence), evidence: supervisedEvidence, signals: [...supervised], reason: `Protected area detected: ${[...supervised].join(', ')}.` };
+  return { risk: 'LOW', mode: 'SAFE', confidence: 96, evidence: [], signals: [], reason: 'No protected dynamic or high-impact area detected statically.' };
 }

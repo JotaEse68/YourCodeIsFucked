@@ -6,7 +6,7 @@ import { applyReorganizationMove } from './reorganization.js';
 import type { RefactorBlock } from './refactor-types.js';
 
 const block = (id: string, source: string, destination: string): RefactorBlock => ({
-  id, type: 'MOVE', goal: 'reorganize', reason: 'test', risk: 'MEDIUM', confidence: 70, mode: 'SUPERVISED',
+  id, type: 'MOVE', goal: 'reorganize', reason: 'test', risk: 'MEDIUM', confidence: 70, evidence: [], confidenceTier: 'DIRECTIONAL', mode: 'SUPERVISED',
   files: [source], dependencies: [], affectedModules: [], preconditions: [],
   operations: [{ id: `${id}-op`, kind: 'MOVE', description: 'move', source, destination, updateImports: true }],
   validation: [], rollback: [], status: 'PLANNED'
@@ -41,7 +41,7 @@ describe('applyReorganizationMove', () => {
     writeFileSync(join(target, 'legacy/a.ts'), 'export const a = 1;\n');
     writeFileSync(join(target, 'legacy/b.ts'), 'export const b = 2;\n');
     const multiOpBlock: RefactorBlock = {
-      id: 'RF-MOVE-003', type: 'MOVE', goal: 'reorganize', reason: 'test', risk: 'MEDIUM', confidence: 70, mode: 'SUPERVISED',
+      id: 'RF-MOVE-003', type: 'MOVE', goal: 'reorganize', reason: 'test', risk: 'MEDIUM', confidence: 70, evidence: [], confidenceTier: 'DIRECTIONAL', mode: 'SUPERVISED',
       files: ['legacy/a.ts', 'legacy/b.ts', 'legacy/missing.ts'], dependencies: [], affectedModules: [], preconditions: [],
       operations: [
         { id: 'RF-MOVE-003-op1', kind: 'MOVE', description: 'move a', source: 'legacy/a.ts', destination: 'features/a.ts', updateImports: true },

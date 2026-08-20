@@ -742,6 +742,57 @@ describe('stack detection', () => {
     expect(reviewBlocks[0].operations).toEqual([]);
   });
 
+  it('computes higher confidence for an exact duplicate group with more occurrences', () => {
+    const duplicate = [
+      'const a = "this exact code block is deliberately long enough to be meaningful";',
+      'const b = a.trim();',
+      'const c = b.toUpperCase();',
+      'const d = c.toLowerCase();',
+      'const e = d.slice(0, 10);',
+      'export { e };'
+    ].join('\n');
+    const twoOccurrenceDir = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(twoOccurrenceDir);
+    writeFileSync(join(twoOccurrenceDir, 'first.js'), duplicate);
+    writeFileSync(join(twoOccurrenceDir, 'second.js'), duplicate);
+    const twoOccurrenceBlock = buildArchitecturalRefactorPlan(twoOccurrenceDir).blocks.find((block) => block.type === 'CONSOLIDATE_DUPLICATE');
+    expect(twoOccurrenceBlock).toBeDefined();
+    expect(twoOccurrenceBlock?.evidence).toHaveLength(2);
+    expect(twoOccurrenceBlock?.confidenceTier).toBe('CONFIRMED');
+
+    const threeOccurrenceDir = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(threeOccurrenceDir);
+    writeFileSync(join(threeOccurrenceDir, 'first.js'), duplicate);
+    writeFileSync(join(threeOccurrenceDir, 'second.js'), duplicate);
+    writeFileSync(join(threeOccurrenceDir, 'third.js'), duplicate);
+    const threeOccurrenceBlock = buildArchitecturalRefactorPlan(threeOccurrenceDir).blocks.find((block) => block.type === 'CONSOLIDATE_DUPLICATE');
+    expect(threeOccurrenceBlock).toBeDefined();
+    expect(threeOccurrenceBlock!.confidence).toBeGreaterThan(twoOccurrenceBlock!.confidence);
+  });
+
+  it('gives a SUPERVISED_REVIEW block real evidence, a confidenceTier, and NEEDS_HUMAN', () => {
+    // Reuses the exact fixture from the existing 'includes every refactorable finding as
+    // a block, not only duplicates' test above (~line 726), already proven to produce at
+    // least one SUPERVISED_REVIEW block -- do not invent a new, untested fixture here.
+    const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
+    temporaryDirectories.push(directory);
+    writeFileSync(join(directory, 'ycf.config.yml'), 'refactor:\n  max_function_lines: 3\n');
+    writeFileSync(join(directory, 'Sidebar.tsx'), [
+      "import { useEffect } from 'react';",
+      'export function Sidebar() {',
+      '  useEffect(() => { loadSidebarData(); });',
+      "  const title = 'Sidebar';",
+      '  return <aside>{title}</aside>;',
+      '}'
+    ].join('\n'));
+    const plan = buildArchitecturalRefactorPlan(directory);
+    const reviewBlock = plan.blocks.find((block) => block.type === 'SUPERVISED_REVIEW');
+    expect(reviewBlock).toBeDefined();
+    expect(reviewBlock?.evidence.length).toBeGreaterThan(0);
+    expect(typeof reviewBlock?.confidenceTier).toBe('string');
+    expect(reviewBlock?.uncertaintyState).toBe('NEEDS_HUMAN');
+  });
+
   it('summarizes release readiness and persists a human-readable report', () => {
     const directory = mkdtempSync(join(tmpdir(), 'ycf-'));
     temporaryDirectories.push(directory);

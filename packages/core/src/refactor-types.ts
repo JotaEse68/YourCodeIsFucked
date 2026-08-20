@@ -1,4 +1,5 @@
 import type { Finding, RefactorPlan as LegacyRefactorPlan, UnderstandReport } from './types.js';
+import type { ConfidenceTier, EvidenceItem, UncertaintyState } from './confidence.js';
 
 export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 export type SafetyMode = 'SAFE' | 'SUPERVISED' | 'BLOCKED';
@@ -20,6 +21,7 @@ export interface RollbackStep { id?: string; kind: 'git-checkpoint' | 'restore-f
 
 export interface RefactorBlock {
   id: string; type: string; goal: string; reason: string; risk: RiskLevel; confidence: number; mode: SafetyMode;
+  evidence: EvidenceItem[]; confidenceTier: ConfidenceTier; uncertaintyState?: UncertaintyState;
   files: string[]; dependencies: string[]; affectedModules: string[]; preconditions: string[];
   operations: RefactorOperation[]; validation: VerificationStep[]; validations?: VerificationStep[]; rollback: RollbackStep[]; status: RefactorBlockStatus;
   result?: { changedFiles: string[]; diffSummary: string; verificationPassed: boolean; error?: string; verification?: unknown };
