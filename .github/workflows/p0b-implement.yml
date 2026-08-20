@@ -1,0 +1,62 @@
+name: P0b Implement and Validate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/p0b-unified-refactor-engine]
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/p0b-unified-refactor-engine
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: corepack enable
+      - run: corepack pnpm install --frozen-lockfile
+      - name: Apply P0b implementation
+        run: node scripts/implement-p0b.mjs
+      - name: Typecheck
+        run: corepack pnpm typecheck
+      - name: Test full suite
+        run: corepack pnpm test
+      - name: Build
+        run: corepack pnpm build
+      - name: Security / release gate
+        run: corepack pnpm ycf -- release . --dependencies --language en
+      - name: Confirm old writers are gone
+        shell: bash
+        run: |
+          if grep -R -n --include='*.ts' --exclude='*.test.ts' -E 'rewriteImportsForMove|importSpecifierPattern|applyReorganizationMove' packages; then
+            echo 'Old writer remains' >&2
+            exit 1
+          fi
+          callers=$(grep -R -l --include='*.ts' --exclude='*.test.ts' 'applyRefactorOperation(' packages/core/src packages/cli/src || true)
+          echo "$callers"
+          test "$(echo "$callers" | sed '/^$/d' | wc -l)" -eq 2
+          echo "$callers" | grep 'refactor-executor.ts'
+          echo "$callers" | grep 'refactor-operations.ts'
+      - name: Commit implementation
+        shell: bash
+        run: |
+          git config user.name 'OpenAI Codex'
+          git config user.email 'noreply@openai.com'
+          git add packages docs
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat(core): unify refactor execution and persistent rollback'
+            git push origin HEAD:codex/p0b-unified-refactor-engine
+          fi
