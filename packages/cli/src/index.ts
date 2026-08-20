@@ -685,7 +685,7 @@ program.command('recover [target]').description('Show or restore interrupted ref
     const block = report.journal?.blocks.find((entry) => entry.blockId === options.restore);
     if (!block) { console.error(`No block "${options.restore}" in the checkpoint journal.`); process.exitCode = 1; return; }
     if (!options.yes) {
-      console.log(`This would restore block "${options.restore}" to commit ${block.commit ?? '(no checkpoint recorded)'}.`);
+      console.log(`This would reset the entire working tree to commit ${block.commit ?? '(no checkpoint recorded)'} (block "${options.restore}"'s pre-execution checkpoint) — discarding any changes made after that point, including any later blocks' committed work.`);
       console.log('Re-run with --yes to confirm the restore.');
       return;
     }
@@ -719,7 +719,7 @@ program.command('next [target]').description('Show the single most useful next a
   const config = loadConfig(target);
   const language: Language = validLanguage(options.language) ? options.language : config.language;
   const audience = validAudience(options.audience) ? options.audience : config.audience;
-  for (const finding of report.suggestions) console.log(`[${confidenceTier(finding.confidence ?? 0)}] [${finding.severity}] ${finding.file}:${finding.lines.join(', ')} — ${guidedAdvice(finding, language, audience)}`);
+  for (const finding of report.suggestions) console.log(`[${finding.confidence === undefined ? 'UNRATED' : confidenceTier(finding.confidence)}] [${finding.severity}] ${finding.file}:${finding.lines.join(', ')} — ${guidedAdvice(finding, language, audience)}`);
 });
 
 program.parse();

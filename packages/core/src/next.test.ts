@@ -39,13 +39,10 @@ describe('next', () => {
     expect(report.blocked?.pendingBlockIds).toEqual(['RF-RUNNING']);
   });
 
-  // This fixture includes a package.json, so next() -> runSecurityChecks() ->
-  // dependencySecurityProvider spawns a real `npm audit` child process (dependencies.ts
-  // bounds it at 60s). That spawn alone routinely takes several seconds under the
-  // parallel load of this suite's other test files (security.test.ts's own equivalent
-  // test shows the same near-5s timing) -- well past vitest's 5000ms default, for reasons
-  // that have nothing to do with the ranking logic under test. Raise this test's timeout
-  // rather than weakening what it proves.
+  // This fixture includes a package.json, but next() now uses basicStaticSecurityProvider
+  // directly (not runSecurityChecks()), so it no longer spawns a real `npm audit` child
+  // process via dependencySecurityProvider -- that network I/O is deliberately excluded
+  // from this read-only command (see the comment in next.ts). No extended timeout needed.
   it('ranks a CONFIRMED-tier finding above a DIRECTIONAL-tier one, tier beating raw score', () => {
     const target = mkdtempSync(join(tmpdir(), 'ycf-next-'));
     writeFileSync(join(target, 'package.json'), JSON.stringify({ name: 'fixture' }));
@@ -60,9 +57,9 @@ describe('next', () => {
     expect(evalIndex).toBeGreaterThanOrEqual(0);
     expect(sqlIndex).toBeGreaterThanOrEqual(0);
     expect(evalIndex).toBeLessThan(sqlIndex);
-  }, 20_000);
+  });
 
-  it('does not duplicate a finding that both audit() and runSecurityChecks() can produce', () => {
+  it('does not duplicate a finding that both audit() and basicStaticSecurityProvider can produce', () => {
     const target = mkdtempSync(join(tmpdir(), 'ycf-next-'));
     mkdirSync(join(target, 'includes'));
     writeFileSync(join(target, 'includes/query.php'), '<?php\n$wpdb->query("DELETE FROM wp_profiles WHERE id = $id");\n');

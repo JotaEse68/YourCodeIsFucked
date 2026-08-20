@@ -43,3 +43,17 @@ export function readCheckpointJournal(target: string): PersistentCheckpointJourn
   const path = join(resolve(target), '.ycf', 'refactor-checkpoints.json'); if (!existsSync(path)) return undefined;
   try { return JSON.parse(readFileSync(path, 'utf8')) as PersistentCheckpointJournal; } catch { return undefined; }
 }
+
+export function markBlockRolledBack(target: string, blockId: string): void {
+  const journal = readCheckpointJournal(target);
+  if (!journal) return;
+  const block = journal.blocks.find((entry) => entry.blockId === blockId);
+  if (!block) return;
+  const now = new Date().toISOString();
+  block.status = 'ROLLED_BACK'; block.updatedAt = now;
+  journal.updatedAt = now;
+  const root = resolve(target); const output = join(root, '.ycf'); const archive = join(output, 'refactor-checkpoints');
+  const currentPath = join(output, 'refactor-checkpoints.json'); const path = join(archive, `${journal.runId}.json`);
+  const serialized = `${JSON.stringify(journal, null, 2)}\n`;
+  atomicWrite(path, serialized); atomicWrite(currentPath, serialized);
+}

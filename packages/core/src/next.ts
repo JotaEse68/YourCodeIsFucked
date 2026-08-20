@@ -1,5 +1,5 @@
 import { audit } from './index.js';
-import { runSecurityChecks } from './security.js';
+import { basicStaticSecurityProvider } from './security.js';
 import { walkSourceFiles } from './verify.js';
 import { readCheckpointJournal } from './refactor-checkpoints.js';
 import { confidenceTier } from './confidence.js';
@@ -17,16 +17,22 @@ export function next(target: string, limit = 5): NextReport {
   if (pending.length) {
     return { target, blocked: { reason: 'unfinished-run', pendingBlockIds: pending.map((block) => block.blockId) }, suggestions: [] };
   }
-  // Merge audit()'s structural findings with runSecurityChecks()'s output. Only the
-  // latter (security.ts's 5 static detectors + dependencySecurityProvider) ever sets
-  // Finding.confidence -- audit() alone would leave every finding undefined-confidence
-  // and this command's entire tier-based ranking would never fire on real data. The two
-  // sources overlap on WordPress-derived findings (audit() and runSecurityChecks() both
-  // call the same wordpress*Findings functions), so dedupe by id, keeping whichever
-  // occurrence is encountered -- they are identical when both exist.
+  // Merge audit()'s structural findings with basicStaticSecurityProvider's output. Only
+  // the latter (security.ts's 5 static detectors) ever sets Finding.confidence -- audit()
+  // alone would leave every finding undefined-confidence and this command's entire
+  // tier-based ranking would never fire on real data. dependencySecurityProvider (real
+  // `npm audit` / `pnpm audit` child process) is deliberately excluded here: its findings
+  // never carry confidence so they'd always sort last anyway, and spawning a real network
+  // audit is expensive I/O this read-only "what's next" command shouldn't perform
+  // unprompted -- that follows the CLI's own convention of keeping advisory network
+  // queries opt-in (`ycf release --dependencies`, the separate `ycf dependencies`
+  // command). The two remaining sources overlap on WordPress-derived findings (audit()
+  // and basicStaticSecurityProvider both call the same wordpress*Findings functions), so
+  // dedupe by id, keeping whichever occurrence is encountered -- they are identical when
+  // both exist.
   const merged = new Map<string, Finding>();
   for (const finding of audit(target).findings) merged.set(finding.id, finding);
-  for (const finding of runSecurityChecks(target, walkSourceFiles(target))) merged.set(finding.id, finding);
+  for (const finding of basicStaticSecurityProvider.run(target, walkSourceFiles(target))) merged.set(finding.id, finding);
   const tierRank: Record<string, number> = { CONFIRMED: 0, HIGH_CONFIDENCE: 1, DIRECTIONAL: 2, SPECULATIVE: 3 };
   const ranked = [...merged.values()].sort((a, b) => {
     const tierA = tierRank[confidenceTier(a.confidence ?? 0)] ?? 4;

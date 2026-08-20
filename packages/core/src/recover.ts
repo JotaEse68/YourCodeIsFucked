@@ -1,4 +1,4 @@
-import { readCheckpointJournal, type PersistentCheckpointJournal } from './refactor-checkpoints.js';
+import { readCheckpointJournal, markBlockRolledBack, type PersistentCheckpointJournal } from './refactor-checkpoints.js';
 import { rollbackToCheckpoint } from './git.js';
 
 export interface RecoverReport { target: string; journal?: PersistentCheckpointJournal; }
@@ -12,6 +12,11 @@ export function restoreBlock(target: string, blockId: string): RestoreResult {
   const block = journal?.blocks.find((entry) => entry.blockId === blockId);
   if (!block) return { restored: false, reason: `No block "${blockId}" in the checkpoint journal.` };
   if (!block.ref || !block.commit) return { restored: false, reason: `Block "${blockId}" has no recorded checkpoint ref to restore to.` };
-  rollbackToCheckpoint(target, { ref: block.ref, commit: block.commit, createdAt: block.startedAt ?? block.updatedAt });
+  try {
+    rollbackToCheckpoint(target, { ref: block.ref, commit: block.commit, createdAt: block.startedAt ?? block.updatedAt });
+  } catch (error) {
+    return { restored: false, reason: error instanceof Error ? error.message : String(error) };
+  }
+  markBlockRolledBack(target, blockId);
   return { restored: true, blockId, commit: block.commit };
 }
