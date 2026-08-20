@@ -22,6 +22,8 @@ export { buildArchitecturalRefactorPlan } from './refactor-planner.js';
 export { writeRefactorExecutionReport, architectureDiff, writeReorganizationReport } from './reporters.js';
 export { cockpitActionsHtml, cockpitHtml, menuHtml, openBrowser, releaseReadinessHtml, startCockpitServer } from './cockpit.js';
 export { demoRefactorBlock } from './refactor-block-fixture.js';
+export { confidenceTier, computeConfidence } from './confidence.js';
+export type { EvidenceItem, ConfidenceTier, UncertaintyState } from './confidence.js';
 import { SECURITY_RELEVANT_RULE_IDS } from './types.js';
 import type { AiResidueCleanupReport, AuditReport, CleanupReport, DuplicateGroup, Finding, ImpactReport, RefactorPlan, Stack, UnderstandReport, YcfConfig } from './types.js';
 export type { AiResidueCleanupReport, AuditReport, AutoIgnoredDirectory, CleanupReport, DependencyAuditReport, DependencyVulnerability, DuplicateGroup, Finding, FindingRisk, GitCheckpoint, GitState, ImpactReport, RefactorPlan, RefactorRecommendation, ReleaseCheck, ReleaseReport, Stack, UnderstandReport, UnfuckReport, VerificationCheck, VerificationReport, YcfConfig } from './types.js';
