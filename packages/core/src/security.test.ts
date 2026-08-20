@@ -47,7 +47,7 @@ describe('basicStaticSecurityProvider', () => {
     expect(finding).toBeDefined();
     // hardcoded-secret findings are always 'needs_human', never silently upgraded to
     // 'confirmed', per the spec's rule -- see security.ts's hardcodedSecretFindings.
-    expect(finding?.status).toBe('needs_human');
+    expect(finding?.uncertaintyState).toBe('NEEDS_HUMAN');
   });
 
   it('does not flag a secret read from an environment variable', () => {
@@ -65,7 +65,7 @@ describe('basicStaticSecurityProvider', () => {
     expect(finding).toBeDefined();
     // A real, precisely-matched eval(...) call genuinely is unambiguous -- confirmed at
     // 'confirmed' status, not weakened to 'needs_human'.
-    expect(finding?.status).toBe('confirmed');
+    expect(finding?.uncertaintyState).toBeUndefined();
   });
 
   it('does not flag an identifier ending in "eval", like dataRetrieval(x) -- unsafeRuntimeCodePattern must have a left word-boundary', () => {
@@ -115,6 +115,24 @@ describe('basicStaticSecurityProvider', () => {
     const file = writeFixture(target, 'src/app.ts', "eval(userInput);\n");
     const findings = basicStaticSecurityProvider.run(target, [file]);
     expect(findings.every((finding) => typeof finding.reproduce === 'string' && finding.reproduce.length > 0)).toBe(true);
+  });
+
+  it('computes higher confidence for multiple occurrences of the same secret pattern than a single occurrence', () => {
+    const singleTarget = mkdtempSync(join(tmpdir(), 'ycf-security-'));
+    const singleFile = writeFixture(singleTarget, 'src/config.ts', "export const key = 'AKIAABCDEFGHIJKLMNOP';\n");
+    const singleFinding = basicStaticSecurityProvider.run(singleTarget, [singleFile]).find((item) => item.ruleId === 'hardcoded-secret');
+    const multiTarget = mkdtempSync(join(tmpdir(), 'ycf-security-'));
+    const multiFile = writeFixture(multiTarget, 'src/config.ts', "export const key = 'AKIAABCDEFGHIJKLMNOP';\nexport const key2 = 'AKIAXXXXXXXXXXXXXXXX';\n");
+    const multiFinding = basicStaticSecurityProvider.run(multiTarget, [multiFile]).find((item) => item.ruleId === 'hardcoded-secret');
+    expect(singleFinding?.confidence).toBe(70);
+    expect(multiFinding?.confidence).toBeGreaterThan(singleFinding!.confidence!);
+  });
+
+  it('produces one evidenceItems entry per matched line', () => {
+    const target = mkdtempSync(join(tmpdir(), 'ycf-security-'));
+    const file = writeFixture(target, 'src/app.ts', "eval(userInput);\neval(otherInput);\n");
+    const finding = basicStaticSecurityProvider.run(target, [file]).find((item) => item.ruleId === 'unsafe-eval');
+    expect(finding?.evidenceItems).toHaveLength(2);
   });
 });
 

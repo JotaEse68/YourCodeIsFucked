@@ -1,3 +1,5 @@
+import type { EvidenceItem, UncertaintyState } from './confidence.js';
+
 export type Stack = 'javascript' | 'typescript' | 'react' | 'php' | 'wordpress';
 export type FindingRisk = 'report-only' | 'auto' | 'safe-refactor' | 'architectural';
 export type Language = 'en' | 'es' | 'pt' | 'fr' | 'de' | 'it' | 'ar' | 'zh';
@@ -8,7 +10,7 @@ export interface Finding {
   id: string;
   ruleId: 'debug-statements' | 'debug-console' | 'unused-import' | 'ai-residue' | 'suspicious-filename' | 'dead-code' | 'god-component' | 'mystery-helper' | 'todo-from-hell' | 'dependency-nobody-uses' | 'sensitive-repository-file' | 'sensitive-repository-file-tracked' | 'sensitive-repository-file-protected' | 'large-source-file' | 'long-function' | 'large-react-component' | 'react-effect-without-dependencies' | 'react-async-effect-without-cleanup' | 'typescript-error-suppression' | 'typescript-public-any' | 'wordpress-dynamic-entrypoint' | 'wordpress-dynamic-callback-review' | 'wordpress-production-debug-config' | 'wordpress-hardcoded-config-secret' | 'wordpress-file-editor-config' | 'wordpress-rest-route-permission' | 'wordpress-rest-route-public' | 'wordpress-rest-route-protected' | 'wordpress-rest-route-permission-review' | 'wordpress-rest-route-callback-review' | 'wordpress-rest-persistence-review' | 'wordpress-wpdb-unprepared-query' | 'wordpress-destructive-operation-review' | 'wordpress-privilege-escalation-review' | 'wordpress-sensitive-data-exposure' | 'wordpress-ajax-nonce-review' | 'wordpress-ajax-capability-review' | 'wordpress-cross-file-data-flow-review' | 'wordpress-unsanitized-input' | 'wordpress-unescaped-output' | 'high-complexity' | 'duplicate-code' | 'similar-duplicate-code' | 'possible-semantic-duplicate' | 'redundant-comment' | 'unused-production-dependency' | 'dependency-vulnerability' | 'hardcoded-secret' | 'unsafe-eval' | 'unsafe-shell-command' | 'sql-injection-risk' | 'tls-verification-disabled';
   severity: 'low' | 'medium'; risk: FindingRisk; file: string; lines: number[]; evidence: string; scoreImpact: number;
-  confidence?: number; reproduce?: string; status?: 'confirmed' | 'needs_human' | 'needs_framework_context';
+  confidence?: number; reproduce?: string; evidenceItems?: EvidenceItem[]; uncertaintyState?: UncertaintyState;
   sourceSeverity?: 'low' | 'moderate' | 'high' | 'critical' | 'unknown';
 }
 
