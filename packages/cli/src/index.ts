@@ -6,7 +6,7 @@ import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
-import { aiResidueFindings, audit, buildArchitecturalRefactorPlan, cleanupAiResidueMarkers, cleanupDevArtifacts, cockpitActionsHtml, cockpitHtml, createCheckpoint, dependencyAudit, dependencyAuditPlan, executeRefactorPlan, impactAnalysis, latestCheckpoint, loadConfig, openBrowser, refactorPlan, releaseCheckLabel, releaseHeading, releaseReadiness, releaseReportLabel, rollbackToCheckpoint, startCockpitServer, understand, verificationPlan, verify, writeAuditReport, writeDependencyAuditReport, writeReleaseReport, writeRefactorExecutionReport, writeUnfuckReport } from '@jotaese68/core';
+import { aiResidueFindings, audit, buildArchitecturalRefactorPlan, cleanupAiResidueMarkers, cleanupDevArtifacts, cockpitActionsHtml, cockpitHtml, createCheckpoint, dependencyAudit, dependencyAuditPlan, executeRefactorPlan, impactAnalysis, latestCheckpoint, loadConfig, openBrowser, recover, refactorPlan, releaseCheckLabel, releaseHeading, releaseReadiness, releaseReportLabel, restoreBlock, rollbackToCheckpoint, startCockpitServer, understand, verificationPlan, verify, writeAuditReport, writeDependencyAuditReport, writeReleaseReport, writeRefactorExecutionReport, writeUnfuckReport } from '@jotaese68/core';
 
 // pnpm forwards a standalone `--` to package scripts on some platforms.
 if (process.argv[2] === '--') process.argv.splice(2, 1);
@@ -677,6 +677,33 @@ program.command('rollback [target]').description('Reset a clean worktree to the 
   if (!checkpoint) throw new Error('No YCF checkpoint found.');
   rollbackToCheckpoint(target, checkpoint);
   console.log(`Rolled back to ${checkpoint.commit} (${checkpoint.ref}).`);
+});
+
+program.command('recover [target]').description('Show or restore interrupted refactor blocks from the persistent checkpoint journal.').option('--json', 'Emit the complete journal as JSON.').option('--restore <blockId>', 'Restore one block to its pre-execution checkpoint.').option('--yes', 'Confirm the restore (required with --restore).').action((target = '.', options) => {
+  const report = recover(target);
+  if (options.restore) {
+    const block = report.journal?.blocks.find((entry) => entry.blockId === options.restore);
+    if (!block) { console.error(`No block "${options.restore}" in the checkpoint journal.`); process.exitCode = 1; return; }
+    if (!options.yes) {
+      console.log(`This would restore block "${options.restore}" to commit ${block.commit ?? '(no checkpoint recorded)'}.`);
+      console.log('Re-run with --yes to confirm the restore.');
+      return;
+    }
+    const result = restoreBlock(target, options.restore);
+    if (!result.restored) { console.error(result.reason); process.exitCode = 1; return; }
+    console.log(`Restored block "${result.blockId}" to commit ${result.commit}.`);
+    return;
+  }
+  if (options.json) { console.log(JSON.stringify(report, null, 2)); return; }
+  if (!report.journal) { console.log('No refactor run found for this target.'); return; }
+  console.log(`YCF — refactor recovery (run ${report.journal.runId})`);
+  console.log(`Base commit: ${report.journal.baseCommit ?? 'unknown'}`);
+  for (const block of report.journal.blocks) {
+    const marker = block.status === 'PENDING' || block.status === 'RUNNING' ? '!' : block.status === 'VERIFIED' ? '✓' : block.status === 'ROLLED_BACK' ? '↩' : '✗';
+    console.log(`${marker} [${block.status}] ${block.blockId}${block.commit ? ` (commit ${block.commit})` : ''} — ${block.changedFiles.length} file(s) changed${block.error ? `: ${block.error}` : ''}`);
+  }
+  const unresolved = report.journal.blocks.filter((block) => block.status === 'PENDING' || block.status === 'RUNNING');
+  if (unresolved.length) console.log(`${unresolved.length} block(s) did not reach a final state. Restore one with: ycf recover ${target} --restore <blockId> --yes`);
 });
 
 program.parse();

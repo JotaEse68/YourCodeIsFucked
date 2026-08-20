@@ -18,6 +18,8 @@ export { applyRefactorOperation } from './refactor-operations.js';
 export { applyReorganizationMove, type ReorganizationMoveResult } from './reorganization.js';
 export { executeRefactorPlan } from './refactor-executor.js';
 export { readCheckpointJournal } from './refactor-checkpoints.js';
+export { recover, restoreBlock } from './recover.js';
+export type { RecoverReport, RestoreResult } from './recover.js';
 export { buildArchitecturalRefactorPlan } from './refactor-planner.js';
 export { writeRefactorExecutionReport, architectureDiff, writeReorganizationReport } from './reporters.js';
 export { cockpitActionsHtml, cockpitHtml, menuHtml, openBrowser, releaseReadinessHtml, startCockpitServer } from './cockpit.js';
