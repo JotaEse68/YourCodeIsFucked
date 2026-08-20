@@ -45,7 +45,9 @@ jobs:
 
       - name: Apply approved P0b implementation on its implementation branch
         if: github.event_name == 'pull_request' && github.head_ref == 'codex/p0b-unified-refactor-engine'
-        run: node scripts/implement-p0b.mjs
+        run: |
+          node scripts/fix-p0b-script.mjs
+          node scripts/implement-p0b.mjs
 
       - name: Type-check
         run: corepack pnpm typecheck
