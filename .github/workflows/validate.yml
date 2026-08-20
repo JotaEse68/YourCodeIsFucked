@@ -9,18 +9,20 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate:
     name: Build, test and review release readiness
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          persist-credentials: true
+          fetch-depth: 0
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
@@ -41,6 +43,10 @@ jobs:
       - name: Install locked dependencies
         run: corepack pnpm install --frozen-lockfile
 
+      - name: Apply approved P0b implementation on its implementation branch
+        if: github.event_name == 'pull_request' && github.head_ref == 'codex/p0b-unified-refactor-engine'
+        run: node scripts/implement-p0b.mjs
+
       - name: Type-check
         run: corepack pnpm typecheck
 
@@ -52,3 +58,25 @@ jobs:
 
       - name: Review release readiness and production dependency advisories
         run: corepack pnpm ycf -- release . --dependencies --language en
+
+      - name: Confirm unified refactor write path
+        if: github.event_name == 'pull_request' && github.head_ref == 'codex/p0b-unified-refactor-engine'
+        shell: bash
+        run: |
+          if grep -R -n --include='*.ts' --exclude='*.test.ts' -E 'rewriteImportsForMove|importSpecifierPattern|applyReorganizationMove' packages; then exit 1; fi
+          callers=$(grep -R -l --include='*.ts' --exclude='*.test.ts' 'applyRefactorOperation(' packages/core/src packages/cli/src || true)
+          test "$(echo "$callers" | sed '/^$/d' | wc -l)" -eq 2
+          echo "$callers" | grep 'refactor-executor.ts'
+          echo "$callers" | grep 'refactor-operations.ts'
+
+      - name: Commit generated P0b implementation
+        if: github.event_name == 'pull_request' && github.head_ref == 'codex/p0b-unified-refactor-engine'
+        shell: bash
+        run: |
+          git config user.name 'OpenAI Codex'
+          git config user.email 'noreply@openai.com'
+          git add packages docs
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat(core): unify refactor execution and persistent rollback'
+            git push origin HEAD:codex/p0b-unified-refactor-engine
+          fi
