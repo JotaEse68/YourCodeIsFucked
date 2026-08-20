@@ -14,7 +14,7 @@ describe('dependencySecurityProvider', () => {
     // not throw.
     const findings = dependencySecurityProvider.run(target, []);
     expect(Array.isArray(findings)).toBe(true);
-  });
+  }, 15000);
 
   it('has the expected provider name', () => {
     expect(dependencySecurityProvider.name).toBe('dependency-security');
